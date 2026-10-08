@@ -1,8 +1,8 @@
 // Learning content + where/when each landform exists in the simulation.
 import * as THREE from 'three';
 import {
-  GX, H, HX, ISLAND, SEGMENTS, TOMB_X, beachWidth, caveParams, caveZ, cliffLine, coast0,
-  geoLength, headHalfWidth, headTop, phase, stackGeom, tomboloCrest,
+  H, HX, ISLAND, SEGMENTS, TOMB_X, beachWidth, caveParams, caveZ, cliffLine, coast0,
+  geoParams, geoX, headHalfWidth, headTop, phase, stackGeom, tomboloCrest,
 } from './world';
 
 export type LandformId = 'cliff' | 'platform' | 'geo' | 'cave' | 'arch' | 'stack' | 'stump' | 'beach' | 'tombolo';
@@ -65,7 +65,7 @@ export const LANDFORMS: Landform[] = [
     ],
     processes: ['水力作用', '磨蝕作用'],
     sequence: '與海蝕洞同樣沿「弱點」發展，代表海崖上的線狀差異侵蝕。',
-    bestStage: 0.75, view: [30, 26, 40],
+    bestStage: 0.7, view: [12, 36, 38],
     quiz: '海浪沿節理不斷侵蝕，形成狹長、深入陸地的裂隙是？',
   },
   {
@@ -159,6 +159,23 @@ export const LANDFORMS: Landform[] = [
 
 export const byId = (id: LandformId) => LANDFORMS.find((l) => l.id === id)!;
 
+/**
+ * Camera framing for the geo: look INTO the cleft along its length from seaward and above, so both walls,
+ * the floor and the back wall are visible. Distance scales with the cleft length. `shift` (fraction of the
+ * distance) slides the shot sideways so the cleft is not hidden behind the info panel; `raise` slides it
+ * seaward so the cleft sits higher on screen, clear of the story card.
+ */
+export function geoFrame(s: number, shift = 0, raise = 0): { pos: THREE.Vector3; target: THREE.Vector3 } {
+  const G = geoParams(s);
+  const zc = G.clG - G.L * 0.55 - 4;
+  const target = new THREE.Vector3(geoX(zc), 12, zc);
+  const dist = Math.min(108, Math.max(64, 60 + G.L * 1.45));
+  const dir = new THREE.Vector3(0.1, 0.86, 0.6).normalize();
+  const pos = target.clone().addScaledVector(dir, dist);
+  const side = new THREE.Vector3(1, 0, -0.2).normalize().multiplyScalar(dist * shift).add(new THREE.Vector3(0, 0, dist * raise));
+  return { pos: pos.add(side), target: target.add(side) };
+}
+
 export interface LandformState { present: boolean; pos: THREE.Vector3; note: string; }
 
 function segIn(s: number, lo: number, hi: number, ideal: number): number {
@@ -183,8 +200,12 @@ export function landformState(id: LandformId, s: number, out = new THREE.Vector3
       return { present: s > 0.12, pos: out.set(x, 1.2, cl + Math.max(3, w * 0.45)), note: s > 0.12 ? `平台闊約 ${Math.round(w)} 米` : '海崖剛開始後退，平台仍很窄' };
     }
     case 'geo': {
-      const cl = cliffLine(GX, s);
-      return { present: s > 0.18, pos: out.set(GX, 8, cl - geoLength(s) * 0.45), note: s > 0.18 ? `深入陸地約 ${Math.round(geoLength(s))} 米` : '節理剛開始被擴闊' };
+      const G = geoParams(s);
+      const z = G.clG - G.L * 0.4;
+      return {
+        present: s > 0.1, pos: out.set(geoX(z), 7, z),
+        note: s > 0.1 ? `沿節理深入陸地約 ${Math.round(G.L)} 米${G.blow ? '，盡頭仍有海蝕洞及噴水洞' : ''}` : '浪正沿節理蝕出狹窄裂縫',
+      };
     }
     case 'cave': {
       const k = segIn(s, 0.12, 0.4, 0.3);

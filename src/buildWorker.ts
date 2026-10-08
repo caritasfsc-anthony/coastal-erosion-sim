@@ -2,9 +2,11 @@
 // Rebuilds terrain + headland geometry off the main thread. Only the most recent request is processed.
 import { HeadlandCore } from './headlandCore';
 import { TerrainCore } from './terrainCore';
+import { GeoCore } from './geoCore';
 
 const head = new HeadlandCore();
 const terr = new TerrainCore();
+const geo = new GeoCore();
 let pending: { s: number; id: number } | null = null;
 let busy = false;
 
@@ -14,12 +16,16 @@ function run() {
   const { s, id } = pending; pending = null;
   const t0 = performance.now();
   const h = head.build(s);
-  const t = terr.build(s, (x, z) => head.solidAt(x, z));
+  const grids = terr.buildGrids(s);
+  const g = geo.build(s, (x, z) => terr.rawAt(x, z), (x, z) => terr.rawMatAt(x, z));
+  const tex = terr.heightTexture(grids.inner, (x, z) => head.solidAt(x, z), (x, z, raw) => geo.texHeight(x, z, raw));
+  const t = { ...grids, tex };
   const ms = performance.now() - t0;
   const transfer = [h.positions.buffer, h.indices.buffer, h.normals.buffer, h.colors.buffer,
     t.inner.heights.buffer, t.inner.normals.buffer, t.inner.colors.buffer,
-    t.outer.heights.buffer, t.outer.normals.buffer, t.outer.colors.buffer, t.tex.buffer] as ArrayBuffer[];
-  (self as unknown as DedicatedWorkerGlobalScope).postMessage({ id, s, ms, head: h, terrain: t }, transfer);
+    t.outer.heights.buffer, t.outer.normals.buffer, t.outer.colors.buffer, t.tex.buffer,
+    g.positions.buffer, g.indices.buffer, g.normals.buffer, g.colors.buffer] as ArrayBuffer[];
+  (self as unknown as DedicatedWorkerGlobalScope).postMessage({ id, s, ms, head: h, geo: g, terrain: t }, transfer);
   setTimeout(run, 0);
 }
 

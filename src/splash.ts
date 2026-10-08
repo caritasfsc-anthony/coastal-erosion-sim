@@ -12,6 +12,7 @@ export interface SplashSource {
   face?: number;      // height of the struck face (spray climbs it)
   key?: string;       // stable id so wave tracking survives source updates
   active?: boolean;   // the highlighted "strike zone"
+  jet?: number;       // blowhole: spout vertically from this height instead of a wall splash
   h?: number; dh?: number; cool?: number;
 }
 
@@ -122,6 +123,25 @@ export class Splash {
     }
   }
 
+  /** Blowhole: the surge compresses the air in the cave below and a plume of spray bursts out of the roof. */
+  blow(src: SplashSource, strength: number) {
+    const R = Math.random;
+    const E = 0.55 + 0.45 * this.energy;
+    const k = Math.max(0.3, strength) * src.w * (0.45 + 0.55 * this.energy);
+    const y0 = src.jet ?? 10;
+    for (let c = 0; c < Math.round(110 * k); c++) {
+      const a = R() * Math.PI * 2, r = R() * 0.7;
+      this.emit(src.p.x + Math.cos(a) * r, y0 - 1.5 + R(), src.p.z + Math.sin(a) * r,
+        Math.cos(a) * R() * 1.6, (8 + R() * 9) * E * (0.7 + 0.5 * strength), Math.sin(a) * R() * 1.6,
+        1.0 + R() * 0.9, 0.35 + R() * 0.55, 1.0, 12, 0.985, 0.95, WHITE);
+    }
+    for (let c = 0; c < Math.round(16 * k); c++) {
+      this.emit(src.p.x + (R() - 0.5), y0 + R() * 3, src.p.z + (R() - 0.5),
+        (R() - 0.5) * 1.2, 1.5 + R() * 2.5 * E, (R() - 0.5) * 1.2 + 0.4,
+        2 + R() * 1.6, 2 + R() * 2.2, 2.4, 0.5, 0.96, 0.35, MIST);
+    }
+  }
+
   /** Rock collapse: dust cloud + boulders crashing into the sea. */
   collapse(p: THREE.Vector3, radius: number, height: number) {
     const R = Math.random;
@@ -153,7 +173,8 @@ export class Splash {
           const strength = Math.min(1, (h + 0.1) / 0.85);
           s.cool = 1.1;
           if (Math.random() < 0.55 + 0.35 * E || s.active) {
-            this.impact(s, strength * (s.active ? 1.25 : 1));
+            if (s.jet !== undefined) this.blow(s, strength);
+            else this.impact(s, strength * (s.active ? 1.25 : 1));
             this.onImpact?.(s, strength);
           }
         }

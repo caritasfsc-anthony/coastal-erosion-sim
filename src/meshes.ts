@@ -41,6 +41,7 @@ export class LandMeshes {
   readonly inner: THREE.Mesh;
   readonly outer: THREE.Mesh;
   readonly headland: THREE.Mesh;
+  readonly geo: THREE.Mesh;
   readonly heightTex: THREE.DataTexture;
 
   constructor(material: THREE.Material) {
@@ -50,25 +51,32 @@ export class LandMeshes {
     this.outer.receiveShadow = true;
     this.headland = new THREE.Mesh(new THREE.BufferGeometry(), material);
     this.headland.castShadow = true; this.headland.receiveShadow = true;
+    this.geo = new THREE.Mesh(new THREE.BufferGeometry(), material);
+    this.geo.castShadow = true; this.geo.receiveShadow = true;
     const n = INNER_GRID.seg + 1;
     this.heightTex = new THREE.DataTexture(new Uint8Array(n * n * 4), n, n, THREE.RGBAFormat, THREE.UnsignedByteType);
     this.heightTex.magFilter = THREE.LinearFilter;
     this.heightTex.minFilter = THREE.LinearFilter;
   }
 
-  apply(head: HeadlandMesh, terrain: { inner: GridResult; outer: GridResult; tex: Uint8Array }) {
+  apply(head: HeadlandMesh, terrain: { inner: GridResult; outer: GridResult; tex: Uint8Array }, geo: HeadlandMesh) {
     applyGrid(this.inner, terrain.inner);
     applyGrid(this.outer, terrain.outer);
     (this.heightTex.image.data as Uint8Array).set(terrain.tex);
     this.heightTex.needsUpdate = true;
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(head.positions, 3));
-    g.setAttribute('normal', new THREE.BufferAttribute(head.normals, 3));
-    g.setAttribute('color', new THREE.BufferAttribute(head.colors, 3));
-    g.setIndex(new THREE.BufferAttribute(head.indices, 1));
-    g.computeBoundingSphere();
-    const old = this.headland.geometry;
-    this.headland.geometry = g;
-    old.dispose();
+    swapGeometry(this.headland, head);
+    swapGeometry(this.geo, geo);
   }
+}
+
+function swapGeometry(mesh: THREE.Mesh, m: HeadlandMesh) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(m.colors, 3));
+  g.setIndex(new THREE.BufferAttribute(m.indices, 1));
+  g.computeBoundingSphere();
+  const old = mesh.geometry;
+  mesh.geometry = g;
+  old.dispose();
 }

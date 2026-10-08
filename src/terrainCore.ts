@@ -1,5 +1,5 @@
 // Pure terrain computation (runs inside the build worker).
-import { INNER, MAT_LAND, MAT_PLAT, MAT_SAND, STATIC_FIELDS, stageConsts, staticSample, terrainSample, type Sample } from './world';
+import { GEO_SUNK, INNER, MAT_LAND, MAT_PLAT, MAT_SAND, PAL_JOINT, STATIC_FIELDS, geoX, jointTrace, stageConsts, staticSample, terrainSample, type Sample } from './world';
 import { PAL, rockColor, type RGB } from './palette';
 import { lerp, noise2, smoothstep } from './noise';
 
@@ -9,8 +9,16 @@ export const OUTER_GRID: GridSpec = { min: -704, size: 1408, seg: 352, tuck: tru
 
 export interface GridResult { heights: Float32Array; normals: Float32Array; colors: Float32Array; }
 
-function colorFor(out: RGB, x: number, z: number, h: number, m: number, ny: number): RGB {
-  if (m === MAT_LAND || ny < 0.55) return rockColor(out, x, h, z, ny);
+/** Rock colour plus the dark trace of the joint the geo follows (shared with the geo voxel mesh). */
+export function rockWithJoint(out: RGB, x: number, y: number, z: number, ny: number, gx = geoX(z)): RGB {
+  rockColor(out, x, y, z, ny);
+  const j = jointTrace(x, z, gx);
+  if (j > 0) { const k = j * 0.72; out[0] = lerp(out[0], PAL_JOINT[0], k); out[1] = lerp(out[1], PAL_JOINT[1], k); out[2] = lerp(out[2], PAL_JOINT[2], k); }
+  return out;
+}
+
+export function colorFor(out: RGB, x: number, z: number, h: number, m: number, ny: number): RGB {
+  if (m === MAT_LAND || ny < 0.55) return rockWithJoint(out, x, h, z, ny);
   const n = 0.5 + 0.5 * noise2(x * 0.15, z * 0.15);
   let a, b, t: number;
   if (m === MAT_SAND) {
@@ -37,6 +45,8 @@ class Grid {
   readonly mats: Uint8Array;
   readonly normals: Float32Array;
   readonly colors: Float32Array;
+  readonly raw: Float32Array;   // heights before the geo cut-out
+  readonly rawM: Uint8Array;
   private prevH: Float32Array;
   private prevM: Uint8Array;
   constructor(readonly spec: GridSpec) {
@@ -51,6 +61,8 @@ class Grid {
     this.mats = new Uint8Array(N);
     this.normals = new Float32Array(N * 3);
     this.colors = new Float32Array(N * 3);
+    this.raw = new Float32Array(N);
+    this.rawM = new Uint8Array(N);
     this.prevH = new Float32Array(N).fill(NaN);
     this.prevM = new Uint8Array(N).fill(255);
   }
@@ -69,14 +81,17 @@ class Grid {
         let h = smp.h;
         if (spec.tuck && x > lo && x < hi && z > lo && z < hi) h -= 3;
         hs[v] = h; ms[v] = smp.m;
+        this.raw[v] = smp.raw!; this.rawM[v] = smp.rawM!;
       }
     }
     const NA = this.normals, CA = this.colors;
     const rgb: RGB = [0, 0, 0];
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
       const v = j * n + i;
-      const hl = hs[j * n + Math.max(0, i - 1)], hr = hs[j * n + Math.min(n - 1, i + 1)];
-      const hd = hs[Math.max(0, j - 1) * n + i], hu = hs[Math.min(n - 1, j + 1) * n + i];
+      // normals from the un-cut surface, so ground beside the geo cut-out is not shaded as a slope
+      const R = this.raw;
+      const hl = R[j * n + Math.max(0, i - 1)], hr = R[j * n + Math.min(n - 1, i + 1)];
+      const hd = R[Math.max(0, j - 1) * n + i], hu = R[Math.min(n - 1, j + 1) * n + i];
       const nx = hl - hr, nz = hd - hu, ny = 2 * step;
       const len = Math.hypot(nx, ny, nz);
       const nyn = ny / len;
@@ -96,21 +111,42 @@ export class TerrainCore {
   readonly inner = new Grid(INNER_GRID);
   readonly outer = new Grid(OUTER_GRID);
 
-  build(s: number, solidAt: (x: number, z: number) => boolean) {
-    const inner = this.inner.build(s);
-    const outer = this.outer.build(s);
+  buildGrids(s: number) {
+    return { inner: this.inner.build(s), outer: this.outer.build(s) };
+  }
+
+  /** Height of the original (pre geo cut-out) inner heightfield surface, interpolated exactly like its triangles. */
+  rawAt(x: number, z: number): number {
+    const g = this.inner, n = g.n;
+    const fx = x - INNER.min, fz = z - INNER.min;
+    const i = Math.max(0, Math.min(n - 2, Math.floor(fx))), j = Math.max(0, Math.min(n - 2, Math.floor(fz)));
+    const u = fx - i, v = fz - j;
+    const a = g.raw[j * n + i], b = g.raw[j * n + i + 1], c = g.raw[(j + 1) * n + i], d = g.raw[(j + 1) * n + i + 1];
+    return u + v < 1 ? a + u * (b - a) + v * (c - a) : d + (1 - u) * (c - d) + (1 - v) * (b - d);
+  }
+  rawMatAt(x: number, z: number): number {
+    const n = this.inner.n;
+    const i = Math.max(0, Math.min(n - 1, Math.round(x - INNER.min))), j = Math.max(0, Math.min(n - 1, Math.round(z - INNER.min)));
+    return this.inner.rawM[j * n + i];
+  }
+
+  /** Land-height texture used by the water shader (depth tint, surf foam, wave attenuation). */
+  heightTexture(inner: GridResult, solidAt: (x: number, z: number) => boolean, geoTex: (x: number, z: number, raw: number) => number) {
     const n = this.inner.n;
     const tex = new Uint8Array(n * n * 4);
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
       const v = j * n + i;
       let h = inner.heights[v];
-      if (h < 3) {
-        const x = INNER.min + i, z = INNER.min + j;
+      const x = INNER.min + i, z = INNER.min + j;
+      if (h <= GEO_SUNK + 0.01) {
+        // inside the geo: water-filled cleft reads as a shallow, foaming surge channel
+        h = geoTex(x, z, this.inner.raw[v]);
+      } else if (h < 3) {
         if (x > -6 && x < 46 && z > 8 && z < 107 && solidAt(x, z)) h = 4;
       }
       const e = Math.max(0, Math.min(255, Math.round(((h + 24) / 48) * 255)));
       tex[v * 4] = e; tex[v * 4 + 1] = e; tex[v * 4 + 2] = e; tex[v * 4 + 3] = 255;
     }
-    return { inner, outer, tex };
+    return tex;
   }
 }

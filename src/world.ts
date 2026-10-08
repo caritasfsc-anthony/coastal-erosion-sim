@@ -72,10 +72,51 @@ export const bayW = (x: number): number => clamp(bump(x, -52, 50) * 2.2);
 export const retreat = (s: number): number => 16 * s;
 export const cliffLine = (x: number, s: number): number => coast0(x) - retreat(s) * (1 - bayW(x));
 export const beachWidth = (s: number): number => 9 + 20 * smoothstep(0, 1, s);
-export const geoLength = (s: number): number => 3 + 28 * smoothstep(0.08, 1, s);
+
+// ---------- geo (海蝕隙) ----------
+/** The vertical joint the geo is quarried along (slightly wavy, as real joints are). */
+export const geoX = (z: number): number => GX + 0.8 * Math.sin(z * 0.16) + 0.35 * noise2(z * 0.3, 4.4);
+/** Length of the open cleft, measured inland from the cliff line. Grows quickly so it reads early. */
+export const geoLength = (s: number): number => 2.5 + 29.5 * Math.pow(smoothstep(0.04, 1, s), 0.75);
+/** Heightfield is replaced by the geo's voxel mesh inside |x - geoX| < GEO_RIN (plus a hidden overlap band). */
+/** Colour of the weathered joint trace (linear RGB). */
+export const PAL_JOINT: [number, number, number] = [0.05, 0.045, 0.04];
+export const GEO_RIN = 7, GEO_BAND = 2.8, GEO_SUNK = -6;
+export function geoParams(s: number) {
+  const clG = cliffLine(GX, s);
+  const L = geoLength(s);
+  const zHead = clG - L;                              // back wall of the open cleft
+  const Lr = 6 * smoothstep(0.04, 0.16, s);           // still-roofed sea cave ahead of the back wall
+  const hwMouth = 1.75 + 0.95 * smoothstep(0, 0.8, s);
+  const hwHead = 1.1 + 0.45 * smoothstep(0, 1, s);
+  const roofY = 4.2 + 0.8 * s;
+  const br = 1.05 * smoothstep(0.14, 0.24, s);
+  const bz = zHead - Lr * 0.6;
+  const blow = br > 0.05 ? { x: geoX(bz), z: bz, r: br } : null; // 噴水洞 through the cave roof
+  return { s, clG, L, zHead, Lr, hwMouth, hwHead, roofY, blow, zIn: zHead - Lr - 3.5, zSea: clG + 6 };
+}
+export type GeoParams = ReturnType<typeof geoParams>;
+/** Half-width of the open cleft at mid height (flares into a gully across the platform seaward of the cliff). */
+export function geoHalfWidth(z: number, P: GeoParams): number {
+  const u = clamp((P.clG - z) / P.L);
+  return lerp(P.hwMouth, P.hwHead, Math.pow(u, 0.9)) + Math.max(0, z - P.clG) * 0.2;
+}
+/** Half-width of the strip where the heightfield is replaced by the geo mesh (cleft + undercut + lip + margin). */
+export function geoStripHalf(z: number, P: GeoParams): number {
+  return (z < P.zHead ? P.hwHead : geoHalfWidth(z, P)) + 3.0;
+}
+/** Floor of the cleft: shallow boulder floor inland, gully that fades out on the platform. */
+export function geoFloor(z: number, P: GeoParams, top: number): number {
+  const u = clamp((P.clG - z) / P.L);
+  return lerp(lerp(-1.9, -0.8, u), top + 0.6, smoothstep(P.clG + 1, P.zSea - 1, z));
+}
+/** Darkening of the joint trace in the rock (0…1): the line of weakness exists before it is eroded. */
+export function jointTrace(x: number, z: number, gx: number): number {
+  return smoothstep(0.75, 0.12, Math.abs(x - gx)) * smoothstep(-58, -50, z) * smoothstep(coast0(GX) + 1.5, coast0(GX) - 0.5, z);
+}
 export const tomboloCrest = (s: number): number => -3.2 + 4.6 * smoothstep(0.12, 0.88, s);
 
-export interface Sample { h: number; m: number; }
+export interface Sample { h: number; m: number; raw?: number; rawM?: number; }
 
 /** Stage-independent terrain terms, cached per vertex (all the expensive noise lives here). */
 export const STATIC_FIELDS = 14;
@@ -94,7 +135,7 @@ export function staticSample(x: number, z: number, out: Float32Array, o: number)
   out[o + 5] = 0.15 * noise2(x * 0.3, z * 0.3);
   out[o + 6] = Math.abs(x - HX) < 40 && z < 12 && z > -60 ? headTop(x, z) : 0;
   out[o + 7] = 0.22 * noise2(x * 0.25, z * 0.25) + 0.1 * noise2(x * 0.8, z * 0.8);
-  out[o + 8] = GX + 1.4 * Math.sin(z * 0.19) + 0.6 * noise2(z * 0.3, 4.4);
+  out[o + 8] = geoX(z);
   out[o + 9] = -1.6 + 0.3 * noise2(x * 0.5, z * 0.5);
   out[o + 10] = dI;
   out[o + 11] = dI < ISLAND.r + 16 ? 15 + 3 * fbm2(x * 0.05, z * 0.05, 3) - dI * 0.12 : 0;
@@ -105,8 +146,9 @@ export function staticSample(x: number, z: number, out: Float32Array, o: number)
 /** Per-stage constants shared by all vertices. */
 export function stageConsts(s: number) {
   const rI = ISLAND.r - 2.5 * s;
+  const G = geoParams(s);
   return {
-    s, R: retreat(s), wb: beachWidth(s), clG: cliffLine(GX, s), L: geoLength(s), rI,
+    s, R: retreat(s), wb: beachWidth(s), geo: G, geoIn: G.zIn, geoSea: G.zSea, rI,
     tz0: cliffLine(TOMB_X, s) - 3, tz1: ISLAND.z - rI + 3, crest: tomboloCrest(s),
   };
 }
@@ -155,18 +197,6 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
     }
   }
 
-  // --- geo (海蝕隙): a narrow cleft cut along a joint ---
-  if (z > K.clG - K.L - 3 && z < K.clG + 4) {
-    const t = clamp((K.clG - z) / K.L);
-    const hw = lerp(2.7, 0.9, t);
-    const dx = Math.abs(x - S[o + 8]);
-    if (dx < hw + 1.3) {
-      const k = smoothstep(hw + 1.3, hw, dx) * smoothstep(K.clG - K.L - 1.5, K.clG - K.L + 1.5, z);
-      const floor = S[o + 9];
-      if (floor < h) { h = lerp(h, floor, k); if (k > 0.5) m = MAT_SEABED; }
-    }
-  }
-
   // --- offshore island ---
   const dI = S[o + 10], rI = K.rI;
   if (dI < rI + 16) {
@@ -187,6 +217,21 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
     if (ht > h) { h = ht; m = ht > -2.8 ? MAT_SAND : MAT_SEABED; }
   }
 
+  // --- geo (海蝕隙): the cleft itself is a voxel mesh (geoCore); drop the heightfield out of its way ---
+  out.raw = h; out.rawM = m;
+  if (z > K.geoIn && z < K.geoSea) {
+    const adx = Math.abs(x - S[o + 8]);
+    if (adx < GEO_RIN && adx < geoStripHalf(z, K.geo)) { h = GEO_SUNK; m = MAT_SEABED; }
+  }
+
   out.h = h; out.m = m;
   return out;
+}
+
+/** Ground height of the original (un-cut) terrain at (x, z) for stage s. Cheap enough for a few hundred points. */
+const _gs = new Float32Array(STATIC_FIELDS);
+const _smp: Sample = { h: 0, m: 0 };
+export function groundRaw(x: number, z: number, K: StageConsts): number {
+  staticSample(x, z, _gs, 0);
+  return terrainSample(x, z, _gs, 0, K, _smp).raw!;
 }

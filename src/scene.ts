@@ -72,7 +72,7 @@ export function createWorld(canvas: HTMLCanvasElement) {
   applyWetSheen(landMat);
   const land = new LandMeshes(landMat);
   const debris = new CliffDebris();
-  scene.add(land.inner, land.outer, land.headland, debris.mesh, createShrubs());
+  scene.add(land.inner, land.outer, land.headland, land.geo, debris.mesh, createShrubs());
 
   const water = new Water({ heightTex: land.heightTex, sunDir, sunColor, skyTop, skyHorizon, fogColor, fogDensity });
   scene.add(water.group);

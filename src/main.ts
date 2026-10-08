@@ -1,28 +1,35 @@
 import './style.css';
 import * as THREE from 'three';
 import { createWorld } from './scene';
-import { LANDFORMS, PROCESSES, SEQUENCE, byId, landformState, type LandformId } from './landforms';
+import { LANDFORMS, PROCESSES, SEQUENCE, byId, geoFrame, landformState, type LandformId } from './landforms';
 import { OVERVIEW, STORY } from './story';
-import { GX, HX, SEGMENTS, caveZ, cliffLine, coast0, headHalfWidth, phase, stackGeom, ISLAND } from './world';
+import { GX, HX, SEGMENTS, caveZ, cliffLine, coast0, geoHalfWidth, geoParams, geoX, groundRaw, headHalfWidth, phase, stackGeom, stageConsts, ISLAND } from './world';
 import { clamp } from './noise';
 import { activeStrike, strikeFor, type Strike } from './waveWork';
 import { wetUniforms } from './wet';
 import type { SplashSource } from './splash';
+import { GeoGuide } from './geoGuide';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 const W = createWorld($('scene') as unknown as HTMLCanvasElement);
 const { camera, controls, land, water, splash, composer, sky, debris } = W;
+const annoEl = document.createElement('div');
+annoEl.id = 'annos';
+$('labels').after(annoEl);
+const guide = new GeoGuide(annoEl);
+W.scene.add(guide.group);
 
 // geometry is rebuilt in a worker so dragging the timeline never blocks rendering
 const worker = new Worker(new URL('./buildWorker.ts', import.meta.url), { type: 'module' });
 let reqId = 0, inflight = false, requested = -1;
 let firstBuild: (() => void) | null = null;
 worker.onmessage = (e: MessageEvent) => {
-  const { s, head, terrain } = e.data;
-  land.apply(head, terrain);
+  const { s, head, terrain, geo } = e.data;
+  land.apply(head, terrain, geo);
   debris.update(s);
+  guide.update(s);
   detectCollapses(app.built, s);
   app.built = s;
   inflight = false;
@@ -81,6 +88,15 @@ function flyOverview(dur = 2) {
 }
 function focusLandform(id: LandformId, stage = app.stage, dur = 1.8) {
   const lf = byId(id);
+  if (id === 'geo') {
+    // dedicated shot down the length of the cleft (shifted left of the info panel when it is open)
+    // the story card + wave caption sit centre-screen, so in story mode the cleft goes to the right-hand side
+    const wide = window.innerWidth > 900;
+    const story = app.mode === 'story';
+    const f = geoFrame(stage, !wide ? 0 : story ? -0.3 : info.classList.contains('open') ? 0.1 : 0, story ? 0.01 : 0);
+    flyTo(f.pos, f.target, dur);
+    return;
+  }
   const st = landformState(id, stage);
   const target = st.pos.clone();
   target.y = Math.max(1.5, target.y * 0.6);
@@ -115,11 +131,28 @@ function updateSplashSources(s: number) {
   add('tip', HX, tip + 0.8, 0, 1, 2, 16);
   // straight cliff coast: surf breaks on the platform edge, then the surge slams into the cliff toe
   for (let x = 46; x <= 152; x += 9) {
-    if (Math.abs(x - GX) < 4) continue;
+    if (Math.abs(x - GX) < 8) continue;
     add(`c${x}`, x, cliffLine(x, s) + 0.7, 0, 1, 0.85, 20);
     if (s > 0.12) add(`e${x}`, x + 4, coast0(x) + 6, 0, 1, 0.45, 1.5);
   }
   for (let x = -150; x <= -104; x += 10) add(`w${x}`, x, cliffLine(x, s) + 1.2, 0, 1, 0.5, 18);
+  // geo: the surge races up the slot, bursts against both walls and explodes off the back wall;
+  // the blowhole in the cave roof spouts when the same surge compresses the air below
+  if (s > 0.05) {
+    const G = geoParams(s);
+    const zb = G.zHead + 0.9;
+    add('g-back', geoX(zb), zb, 0, 1, 1.25, 20);
+    for (const u of [0.3, 0.62]) {
+      const z = G.clG - G.L * u, hw = geoHalfWidth(z, G);
+      add(`g-w${u}`, geoX(z) - hw + 0.4, z, 1, 0.5, 0.45, 18);
+      add(`g-e${u}`, geoX(z) + hw - 0.4, z, -1, 0.5, 0.45, 18);
+    }
+    add('g-mouth', geoX(G.clG + 2), G.clG + 2.5, 0, 1, 0.7, 6);
+    if (G.blow) {
+      const top = groundRaw(G.blow.x + 1.6, G.blow.z, stageConsts(s));
+      src.push({ key: 'g-blow', p: new THREE.Vector3(G.blow.x, 0, G.blow.z), n: new THREE.Vector3(0, 0, 1), w: 0.9 * G.blow.r, face: 8, jet: top });
+    }
+  }
   add('i1', ISLAND.x - 10, ISLAND.z + ISLAND.r - 2, 0, 1, 0.9, 14);
   add('i2', ISLAND.x + 12, ISLAND.z + ISLAND.r - 6, 0.6, 1, 0.9, 14);
   src.push(strikeSrc);
@@ -524,6 +557,13 @@ function onHotspotClick(id: LandformId) {
   selectLandform(id, true);
 }
 
+/** The geo teaching overlay shows whenever the learner is studying the geo — never in challenge mode. */
+function geoGuideWanted(now: number): boolean {
+  if (app.mode === 'quiz' || app.built < 0.06) return false;
+  if (app.mode === 'story') return STORY[storyIdx].focus === 'geo';
+  return app.selected === 'geo' || (watch !== null && watch.id === 'geo' && now < watch.until);
+}
+
 // ------------------------------------------------------------------ loop
 const clock = new THREE.Timer();
 let elapsed = 0;
@@ -566,6 +606,8 @@ function frame() {
   const now = performance.now();
   updateStrike(now);
   projectStrike();
+  guide.visible = geoGuideWanted(now);
+  guide.tick(dt, elapsed, camera);
 
   // collapse shake: offset the camera only for this frame's render
   let sx = 0, sy = 0;
@@ -597,4 +639,8 @@ requestAnimationFrame(() => setTimeout(boot, 30));
 
 // expose for debugging / automated screenshots
 function setView(p: [number, number, number], t: [number, number, number]) { camTween = null; camera.position.set(...p); controls.target.set(...t); controls.update(); }
-(window as unknown as Record<string, unknown>).__sim = { setView, app, setStage, animateStage, selectLandform, flyTo, flyOverview, setMode, camera, controls, caveZ, splash, setPlaying };
+function snap() {
+  if (stageTween) { setStage(stageTween.to); stageTween = null; }
+  if (camTween) { camera.position.copy(camTween.p1); controls.target.copy(camTween.t1); camTween = null; controls.update(); }
+}
+(window as unknown as Record<string, unknown>).__sim = { snap, focusLandform, V3: THREE.Vector3, world: W, setView, app, setStage, animateStage, selectLandform, flyTo, flyOverview, setMode, camera, controls, caveZ, splash, setPlaying };

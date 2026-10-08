@@ -1,7 +1,7 @@
 // Where are the waves doing the most work right now? Drives the 浪擊點 marker + caption.
 import * as THREE from 'three';
 import { landformState, type LandformId } from './landforms';
-import { GX, HX, SEGMENTS, caveParams, caveZ, cliffLine, geoLength, headHalfWidth, headTop, phase, stackGeom } from './world';
+import { HX, SEGMENTS, caveParams, caveZ, cliffLine, geoParams, geoX, headHalfWidth, headTop, phase, stackGeom } from './world';
 
 export interface Strike {
   pos: THREE.Vector3;     // point on the struck face, at the waterline
@@ -67,10 +67,12 @@ export function strikeFor(id: LandformId, s: number, sTarget = s): Strike {
       };
     }
     case 'geo': {
-      const z = cliffLine(GX, s) - geoLength(s) * 0.15;
+      // the surge funnels down the slot and slams into its back wall
+      const G = geoParams(s);
+      const z = G.zHead + 0.9;
       return {
-        pos: new THREE.Vector3(GX, 0.8, z + 2), n: new THREE.Vector3(0, 0, 1), face: 16,
-        title: '浪沿節理鑽入 → 海蝕隙', text: '浪衝入垂直節理，把空氣壓縮；退浪時壓力驟降，裂縫一次次被撐闊、磨深。',
+        pos: new THREE.Vector3(geoX(z), 0.8, z), n: new THREE.Vector3(0, 0, 1), face: 18,
+        title: '浪沿節理鑽入 → 海蝕隙', text: '浪湧入狹窄的裂隙、撞向盡頭岩壁，把空氣壓入節理；退浪時壓力驟降，裂隙一次次被撐闊、磨深，並向陸地伸延。',
       };
     }
     case 'beach': case 'tombolo': {

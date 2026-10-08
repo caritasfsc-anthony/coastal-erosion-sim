@@ -33,7 +33,7 @@ export class CliffDebris {
     applyWetSheen(mat);
     let id = 0;
     for (let x = 44; x <= 154; x += 1.7) {
-      if (Math.abs(x - GX) < 5) continue;
+      if (Math.abs(x - GX) < 8.5) continue; // the geo has its own boulders
       const h = hash1(id * 13 + 7);
       if (h < 0.35) { id++; continue; }
       const born = -0.35 + 1.3 * hash1(id * 29 + 3);
