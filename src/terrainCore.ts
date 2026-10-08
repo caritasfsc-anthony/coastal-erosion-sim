@@ -1,0 +1,116 @@
+// Pure terrain computation (runs inside the build worker).
+import { INNER, MAT_LAND, MAT_PLAT, MAT_SAND, STATIC_FIELDS, stageConsts, staticSample, terrainSample, type Sample } from './world';
+import { PAL, rockColor, type RGB } from './palette';
+import { lerp, noise2, smoothstep } from './noise';
+
+export interface GridSpec { min: number; size: number; seg: number; tuck: boolean; }
+export const INNER_GRID: GridSpec = { min: INNER.min, size: INNER.size, seg: INNER.seg, tuck: false };
+export const OUTER_GRID: GridSpec = { min: -704, size: 1408, seg: 352, tuck: true };
+
+export interface GridResult { heights: Float32Array; normals: Float32Array; colors: Float32Array; }
+
+function colorFor(out: RGB, x: number, z: number, h: number, m: number, ny: number): RGB {
+  if (m === MAT_LAND || ny < 0.55) return rockColor(out, x, h, z, ny);
+  const n = 0.5 + 0.5 * noise2(x * 0.15, z * 0.15);
+  let a, b, t: number;
+  if (m === MAT_SAND) {
+    if (h > 0.6) { a = PAL.sandWet; b = PAL.sand; t = smoothstep(0.6, 1.6, h); }
+    else { a = PAL.sandDeep; b = PAL.sandWet; t = smoothstep(-2.5, 0.6, h); }
+  } else if (m === MAT_PLAT) {
+    a = PAL.platWet; b = PAL.plat; t = smoothstep(0.1, 0.8, h) * (0.6 + 0.4 * n);
+  } else {
+    a = PAL.seabed; b = PAL.seabedShallow; t = smoothstep(-9, -1.5, h) * (0.7 + 0.3 * n);
+  }
+  out[0] = lerp(a.r, b.r, t); out[1] = lerp(a.g, b.g, t); out[2] = lerp(a.b, b.b, t);
+  if (m === MAT_PLAT) {
+    const al = smoothstep(0.35, 0.8, noise2(x * 0.5, z * 0.5)) * 0.45;
+    out[0] = lerp(out[0], PAL.algae.r, al); out[1] = lerp(out[1], PAL.algae.g, al); out[2] = lerp(out[2], PAL.algae.b, al);
+  }
+  return out;
+}
+
+class Grid {
+  readonly n: number;
+  readonly step: number;
+  readonly stat: Float32Array;
+  readonly heights: Float32Array;
+  readonly mats: Uint8Array;
+  readonly normals: Float32Array;
+  readonly colors: Float32Array;
+  private prevH: Float32Array;
+  private prevM: Uint8Array;
+  constructor(readonly spec: GridSpec) {
+    this.n = spec.seg + 1;
+    this.step = spec.size / spec.seg;
+    const N = this.n * this.n;
+    this.stat = new Float32Array(N * STATIC_FIELDS);
+    for (let j = 0; j < this.n; j++) for (let i = 0; i < this.n; i++) {
+      staticSample(spec.min + i * this.step, spec.min + j * this.step, this.stat, (j * this.n + i) * STATIC_FIELDS);
+    }
+    this.heights = new Float32Array(N);
+    this.mats = new Uint8Array(N);
+    this.normals = new Float32Array(N * 3);
+    this.colors = new Float32Array(N * 3);
+    this.prevH = new Float32Array(N).fill(NaN);
+    this.prevM = new Uint8Array(N).fill(255);
+  }
+
+  build(s: number): GridResult {
+    const { n, step, spec, heights: hs, mats: ms } = this;
+    const K = stageConsts(s);
+    const smp: Sample = { h: 0, m: 0 };
+    const lo = INNER.min + 1, hi = INNER.min + INNER.size - 1;
+    for (let j = 0; j < n; j++) {
+      const z = spec.min + j * step;
+      for (let i = 0; i < n; i++) {
+        const x = spec.min + i * step;
+        const v = j * n + i;
+        terrainSample(x, z, this.stat, v * STATIC_FIELDS, K, smp);
+        let h = smp.h;
+        if (spec.tuck && x > lo && x < hi && z > lo && z < hi) h -= 3;
+        hs[v] = h; ms[v] = smp.m;
+      }
+    }
+    const NA = this.normals, CA = this.colors;
+    const rgb: RGB = [0, 0, 0];
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const v = j * n + i;
+      const hl = hs[j * n + Math.max(0, i - 1)], hr = hs[j * n + Math.min(n - 1, i + 1)];
+      const hd = hs[Math.max(0, j - 1) * n + i], hu = hs[Math.min(n - 1, j + 1) * n + i];
+      const nx = hl - hr, nz = hd - hu, ny = 2 * step;
+      const len = Math.hypot(nx, ny, nz);
+      const nyn = ny / len;
+      const changed = Math.abs(NA[v * 3 + 1] - nyn) > 1e-3 || !(Math.abs(hs[v] - this.prevH[v]) < 1e-3) || ms[v] !== this.prevM[v];
+      NA[v * 3] = nx / len; NA[v * 3 + 1] = nyn; NA[v * 3 + 2] = nz / len;
+      if (changed) {
+        colorFor(rgb, spec.min + i * step, spec.min + j * step, hs[v], ms[v], nyn);
+        CA[v * 3] = rgb[0]; CA[v * 3 + 1] = rgb[1]; CA[v * 3 + 2] = rgb[2];
+        this.prevH[v] = hs[v]; this.prevM[v] = ms[v];
+      }
+    }
+    return { heights: hs.slice(), normals: NA.slice(), colors: CA.slice() };
+  }
+}
+
+export class TerrainCore {
+  readonly inner = new Grid(INNER_GRID);
+  readonly outer = new Grid(OUTER_GRID);
+
+  build(s: number, solidAt: (x: number, z: number) => boolean) {
+    const inner = this.inner.build(s);
+    const outer = this.outer.build(s);
+    const n = this.inner.n;
+    const tex = new Uint8Array(n * n * 4);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const v = j * n + i;
+      let h = inner.heights[v];
+      if (h < 3) {
+        const x = INNER.min + i, z = INNER.min + j;
+        if (x > -6 && x < 46 && z > 8 && z < 107 && solidAt(x, z)) h = 4;
+      }
+      const e = Math.max(0, Math.min(255, Math.round(((h + 24) / 48) * 255)));
+      tex[v * 4] = e; tex[v * 4 + 1] = e; tex[v * 4 + 2] = e; tex[v * 4 + 3] = 255;
+    }
+    return { inner, outer, tex };
+  }
+}

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-Hant-HK">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#061520" />
+    <title>海岸侵蝕實驗室｜Coastal Erosion Lab</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path d='M4 44c8-6 14-6 20 0s14 6 20 0 12-6 16-2v18H4z' fill='%235eead4'/><path d='M14 40V20l10-8 8 10v18z' fill='%23f5d0a0'/></svg>" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+      <div class="vignette"></div>
+      <div id="labels"></div>
+
+      <header class="brand glass">
+        <div class="brand-mark">
+          <svg viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="bg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5eead4"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><path d="M3 27c5-4 9-4 13 0s9 4 13 0 7-3 8-1v11H3z" fill="url(#bg1)"/><path d="M10 25V12l7-6 6 7v12z" fill="#f5d0a0" opacity=".95"/><path d="M26 25v-6l3-3 3 3v6z" fill="#f5d0a0" opacity=".7"/></svg>
+        </div>
+        <div>
+          <h1>海岸侵蝕實驗室</h1>
+          <p>Coastal Erosion Lab · 互動 3D 地理模擬</p>
+        </div>
+      </header>
+
+      <nav class="modes glass" id="modes" aria-label="模式">
+        <button data-mode="explore" class="active"><span>探索模式</span><small>Explore</small></button>
+        <button data-mode="story"><span>故事模式</span><small>Story</small></button>
+        <button data-mode="quiz"><span>挑戰模式</span><small>Challenge</small></button>
+      </nav>
+
+      <div class="toolbar glass" id="toolbar">
+        <button id="btn-rotate" class="icon-btn" title="自動旋轉"><svg viewBox="0 0 24 24"><path d="M12 5a7 7 0 1 0 7 7" /><path d="M19 5v4h-4" /></svg><span>旋轉</span></button>
+        <button id="btn-tide" class="icon-btn" title="切換潮汐"><svg viewBox="0 0 24 24"><path d="M3 15c2-2 4-2 6 0s4 2 6 0 4-2 6 0" /><path d="M3 19c2-2 4-2 6 0s4 2 6 0 4-2 6 0" /><path d="M12 3v8M9 8l3 3 3-3" /></svg><span id="tide-label">中潮</span></button>
+        <button id="btn-labels" class="icon-btn active" title="顯示標籤"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7" /></svg><span>標籤</span></button>
+        <button id="btn-process" class="icon-btn" title="侵蝕作用"><svg viewBox="0 0 24 24"><path d="M12 3c3 4 6 7 6 11a6 6 0 0 1-12 0c0-4 3-7 6-11z" /></svg><span>作用</span></button>
+        <button id="btn-home" class="icon-btn" title="重設視角"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /></svg><span>總覽</span></button>
+      </div>
+
+      <aside id="sidebar" class="glass">
+        <div class="side-head">
+          <h2>海岸地貌</h2>
+          <span class="count" id="found-count">0 / 9 已探索</span>
+        </div>
+        <ul id="lf-list"></ul>
+        <p class="side-hint">點擊場景中的光點或清單項目，了解地貌的形成過程。</p>
+      </aside>
+
+      <section id="info" class="glass panel" aria-live="polite">
+        <button class="close" id="info-close" aria-label="關閉">×</button>
+        <div class="info-tag" id="info-tag"></div>
+        <h2 id="info-title"></h2>
+        <div class="info-en" id="info-en"></div>
+        <p class="info-short" id="info-short"></p>
+        <div class="info-status" id="info-status"></div>
+        <h3>形成過程</h3>
+        <ol id="info-steps"></ol>
+        <div class="chips" id="info-proc"></div>
+        <h3>在侵蝕序列中的位置</h3>
+        <div id="info-seq"></div>
+        <p class="info-example" id="info-example"></p>
+        <button class="primary" id="info-jump">▶ 觀看形成過程</button>
+      </section>
+
+      <section id="process-panel" class="glass panel">
+        <button class="close" id="process-close" aria-label="關閉">×</button>
+        <div class="info-tag">海浪的力量</div>
+        <h2>四種海浪侵蝕作用</h2>
+        <div id="process-list"></div>
+        <p class="note">破壞性海浪（回流強於進流）主導侵蝕；建設性海浪（進流強於回流）則有利沉積。岬角與海灣的差異侵蝕，正是本模擬的核心。</p>
+      </section>
+
+      <section id="story" class="glass">
+        <div class="story-top">
+          <span class="story-step" id="story-step"></span>
+          <div class="story-dots" id="story-dots"></div>
+        </div>
+        <h2 id="story-title"></h2>
+        <p id="story-text"></p>
+        <div class="story-nav">
+          <button id="story-prev" class="ghost">‹ 上一步</button>
+          <button id="story-auto" class="ghost">自動播放</button>
+          <button id="story-next" class="primary">下一步 ›</button>
+        </div>
+      </section>
+
+      <section id="quiz" class="glass">
+        <div class="quiz-top"><span class="info-tag">挑戰模式</span><span id="quiz-score"></span></div>
+        <h2 id="quiz-q"></h2>
+        <p class="quiz-hint" id="quiz-hint">在場景中點擊正確的光點。</p>
+        <div class="quiz-feedback" id="quiz-feedback"></div>
+        <div class="story-nav">
+          <button id="quiz-skip" class="ghost">跳過</button>
+          <button id="quiz-next" class="primary">下一題 ›</button>
+        </div>
+      </section>
+
+      <footer id="timeline" class="glass">
+        <button id="play" class="play" aria-label="播放侵蝕過程"><svg viewBox="0 0 24 24" id="play-icon"><path d="M7 5l12 7-12 7z" /></svg></button>
+        <div class="tl-main">
+          <div class="tl-head">
+            <span class="tl-title">侵蝕階段</span>
+            <span class="tl-stage" id="stage-name">初期</span>
+            <span class="tl-years" id="stage-years">約 0 年</span>
+          </div>
+          <div class="tl-track">
+            <input type="range" id="stage" min="0" max="1000" value="0" aria-label="侵蝕階段" />
+            <div class="tl-marks" id="tl-marks"></div>
+          </div>
+          <div class="tl-ticks"><span>初期 · 岩岸新成</span><span>中期 · 洞穴與拱門</span><span>後期 · 海蝕柱與沙洲</span></div>
+        </div>
+        <div class="tl-energy">
+          <label for="energy">波浪能量</label>
+          <input type="range" id="energy" min="20" max="180" value="100" />
+          <span id="energy-val">中</span>
+        </div>
+      </footer>
+
+      <div id="toast"></div>
+      <div id="loader">
+        <div class="loader-inner">
+          <div class="loader-ring"></div>
+          <h1>海岸侵蝕實驗室</h1>
+          <p id="loader-text">正在雕刻岩岸⋯</p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
