@@ -2,6 +2,28 @@
 import * as THREE from 'three';
 import { INNER } from './world';
 
+/** Swell components shared by the GPU ocean and the CPU wave-impact timing (so spray matches the visible waves). */
+export const WAVES = [
+  { dx: 0.08, dz: -1.0, L: 46, A: 0.5, Q: 0.55, spd: 1.0 },
+  { dx: -0.38, dz: -0.92, L: 27, A: 0.28, Q: 0.6, spd: 1.0 },
+  { dx: 0.55, dz: -0.83, L: 16, A: 0.16, Q: 0.6, spd: 1.1 },
+  { dx: -0.85, dz: -0.52, L: 9, A: 0.07, Q: 0.5, spd: 1.2 },
+].map((w) => {
+  const l = Math.hypot(w.dx, w.dz), k = (2 * Math.PI) / w.L;
+  return { ...w, dx: w.dx / l, dz: w.dz / l, k, om: Math.sqrt(9.8 * k) * w.spd };
+});
+
+/** Normalised swell height (≈ -1…1) at (x, z) and time t — identical phase to the shader. */
+export function waveHeight(x: number, z: number, t: number): number {
+  let h = 0;
+  for (const w of WAVES) h += w.A * Math.sin(w.k * (w.dx * x + w.dz * z) - w.om * t);
+  return h;
+}
+
+const f = (v: number) => v.toFixed(5);
+const GERSTNER_CALLS = WAVES.map((w) =>
+  `gerstner(vec2(${f(w.dx)},${f(w.dz)}), ${f(w.L)}, ${f(w.A)}*a, ${f(w.Q)}, ${f(w.spd)}, p, uTime, P, N);`).join('\n  ');
+
 const NOISE = /* glsl */ `
 float h21(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
 float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
@@ -17,8 +39,8 @@ float landH(vec2 xz){ vec2 uv=(xz-uHeightRect.xy)/uHeightRect.z;
 `;
 
 const vert = /* glsl */ `
-uniform float uTime; uniform float uAmp; uniform float uLevel;
-varying vec3 vWorld; varying vec3 vN; varying float vCrest;
+uniform float uTime; uniform float uAmp; uniform float uLevel; uniform float uSurge;
+varying vec3 vWorld; varying vec3 vN; varying float vCrest; varying float vSurge;
 ${LAND}
 void gerstner(vec2 D, float L, float A, float Q, float spd, vec2 p, float t, inout vec3 P, inout vec3 N){
   float k = 6.28318/L; float w = sqrt(9.8*k)*spd; float f = k*dot(D,p) - w*t;
@@ -34,11 +56,14 @@ void main(){
   float far = 1.0 - smoothstep(260.0, 335.0, length(p));
   float a = uAmp*att*far;
   vec3 P = vec3(p.x, uLevel, p.y); vec3 N = vec3(0.0,1.0,0.0);
-  gerstner(normalize(vec2(0.08,-1.0)), 46.0, 0.50*a, 0.55, 1.0, p, uTime, P, N);
-  gerstner(normalize(vec2(-0.38,-0.92)), 27.0, 0.28*a, 0.6, 1.0, p, uTime, P, N);
-  gerstner(normalize(vec2(0.55,-0.83)), 16.0, 0.16*a, 0.6, 1.1, p, uTime, P, N);
-  gerstner(normalize(vec2(-0.85,-0.52)), 9.0, 0.07*a, 0.5, 1.2, p, uTime, P, N);
+  ${GERSTNER_CALLS}
   vCrest = (P.y-uLevel)/max(0.2, 0.9*a+0.001);
+  // surge / run-up: each arriving crest pushes a sheet of water up the platform and against the rock
+  float hNorm = ${WAVES.map((w) => `${f(w.A)}*sin(${f(w.k)}*dot(vec2(${f(w.dx)},${f(w.dz)}), p) - ${f(w.om)}*uTime)`).join(' + ')};
+  float surge = pow(clamp(hNorm*1.15, 0.0, 1.0), 2.0);
+  float nearShore = 1.0 - smoothstep(-0.5, 4.5, depth);
+  P.y += uSurge*uAmp*surge*nearShore*far;
+  vSurge = surge*nearShore;
   vN = normalize(N);
   vWorld = P;
   gl_Position = projectionMatrix*viewMatrix*vec4(P,1.0);
@@ -46,6 +71,7 @@ void main(){
 
 const frag = /* glsl */ `
 uniform float uTime; uniform float uLevel; uniform float uOuter; uniform float uAmp;
+varying float vSurge;
 uniform vec3 uSunDir, uSunColor, uDeep, uShallow, uFoam, uSkyTop, uSkyHorizon, uFogColor;
 uniform float uFogDensity;
 varying vec3 vWorld; varying vec3 vN; varying float vCrest;
@@ -55,7 +81,7 @@ void main(){
   float r = length(vWorld.xz);
   if (uOuter < 0.5 && r > 340.0) discard;
   if (uOuter > 0.5 && r < 340.0) discard;
-  float depth = uLevel - landH(vWorld.xz);
+  float depth = vWorld.y - landH(vWorld.xz);
   vec2 q = vWorld.xz;
   // micro detail normal
   float e = 0.6;
@@ -83,11 +109,16 @@ void main(){
   // foam: shoreline wash + travelling surf bands + crest whitecaps
   float n1 = fbm(q*0.12 + vec2(uTime*0.04, uTime*0.07));
   float n2 = fbm(q*0.55 - vec2(uTime*0.15, uTime*0.3));
-  float shore = 1.0 - smoothstep(0.0, 0.7 + 0.9*n1, depth);
-  float band = smoothstep(0.55, 1.0, sin(depth*2.1 - uTime*1.7 + n1*4.0)) * (1.0 - smoothstep(0.3, 3.8, depth));
+  // whitewater widens and brightens as each crest surges in, then drains away
+  float shore = 1.0 - smoothstep(0.0, 0.6 + 0.7*n1 + 1.2*vSurge*uAmp, depth);
+  float band = smoothstep(0.55, 1.0, sin(depth*2.1 - uTime*1.7 + n1*4.0)) * (1.0 - smoothstep(0.3, 3.8 + 2.0*vSurge, depth));
+  // lacy, torn whitewater sheet that floods in with each surge and drains back
+  float lace = smoothstep(0.42, 0.62, fbm(q*0.9 + vec2(uTime*0.2, -uTime*0.35)) + 0.35*n2 - 0.15);
+  float wash = vSurge*lace*(1.0 - smoothstep(0.3, 4.5, depth));
   float big = smoothstep(0.45, 0.75, fbm(q*0.018 + vec2(uTime*0.01, 0.0)));
   float crest = smoothstep(0.7, 1.05, vCrest + n1*0.5 - 0.25) * 0.45 * big * smoothstep(0.6, 1.4, uAmp);
-  float foam = clamp(shore*0.95 + band*0.75 + crest, 0.0, 1.0) * smoothstep(0.25, 0.7, n2 + shore*0.4);
+  float foam = clamp(shore*0.95 + band*0.7 + crest, 0.0, 1.0) * smoothstep(0.28, 0.66, n2 + shore*0.16 + band*0.1);
+  foam = max(foam, wash*0.95);
   col = mix(col, uFoam, foam);
   float alpha = mix(0.42, 0.95, smoothstep(0.0, 5.0, depth));
   alpha = max(max(alpha, foam), fres);
@@ -108,7 +139,7 @@ export class Water {
 
   constructor(o: WaterOptions) {
     this.uniforms = {
-      uTime: { value: 0 }, uAmp: { value: 1 }, uLevel: { value: 0 },
+      uTime: { value: 0 }, uAmp: { value: 1 }, uLevel: { value: 0 }, uSurge: { value: 0.75 },
       uHeight: { value: o.heightTex },
       uHeightRect: { value: new THREE.Vector3(INNER.min, INNER.min, INNER.size) },
       uSunDir: { value: o.sunDir }, uSunColor: { value: o.sunColor },
@@ -131,5 +162,6 @@ export class Water {
   update(t: number) { this.uniforms.uTime.value = t; }
   set amplitude(v: number) { this.uniforms.uAmp.value = v; }
   set level(v: number) { this.uniforms.uLevel.value = v; }
+  set surge(v: number) { this.uniforms.uSurge.value = v; }
   get level(): number { return this.uniforms.uLevel.value; }
 }

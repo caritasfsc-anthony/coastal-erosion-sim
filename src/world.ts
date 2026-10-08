@@ -33,14 +33,17 @@ export function headTop(x: number, z: number): number {
 
 /** Cave/arch geometry parameters for a segment phase p. */
 export function caveParams(p: number, w: number) {
+  // Wave attack works from the waterline inwards: the cave first pushes deep into the rock as a low
+  // slot at the notch (rx), and only later grows upward (ry) as the roof is quarried away.
   const cp = smoothstep(0.08, 0.38, p);
+  const tall = smoothstep(0.18, 0.42, p);
   const ap = smoothstep(0.38, 0.58, p);
   return {
     cp, ap,
     rx: 0.5 + w * 1.12 * cp + 3 * ap,
-    ry: lerp(1.2, 5.2, cp) + 6.5 * ap,
+    ry: lerp(1.1, 5.2, tall) + 6.5 * ap,
     rz: lerp(1.0, 3.0, cp) + 1.6 * ap,
-    collapse: smoothstep(0.56, 0.66, p),
+    collapse: smoothstep(0.565, 0.61, p),
     stack: smoothstep(0.62, 0.85, p),
     stump: smoothstep(0.85, 1.0, p),
   };
@@ -126,7 +129,7 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
   } else {
     const dz = -dIn;
     const platW = c0 + 6 - cl;
-    const hPlat = 0.62 - 0.03 * dz + S[o + 4];
+    const hPlat = 0.02 - 0.035 * dz + 0.7 * S[o + 4];
     const pEdge = smoothstep(platW, platW + 10, dz);
     const hRock = lerp(hPlat, seabed, pEdge);
     const hBeach = 2.6 - 4.6 * (dz / K.wb) + S[o + 5];
@@ -147,7 +150,7 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
     }
     if (z > 8) {
       const outD = Math.max(0, ax - w) + Math.max(0, z - 101);
-      const hp = 0.55 - 0.04 * outD + S[o + 7] - 12 * smoothstep(2.5 + 5 * s, 9 + 8 * s, outD + 9 * S[o + 4]);
+      const hp = -0.02 - 0.05 * outD + 0.7 * S[o + 7] - 12 * smoothstep(2.5 + 5 * s, 9 + 8 * s, outD + 9 * S[o + 4]);
       if (hp > h) { h = hp; m = hp > -1.2 ? MAT_PLAT : MAT_SEABED; }
     }
   }
@@ -169,7 +172,7 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
   if (dI < rI + 16) {
     const hI = S[o + 11] * smoothstep(rI + 0.5, rI - 1.2, dI);
     if (hI > h) { h = hI; m = MAT_LAND; }
-    const ring = 0.5 - 0.06 * (dI - rI) + S[o + 12] - 10 * smoothstep(3 + 5 * s, 9 + 6 * s, dI - rI);
+    const ring = 0.05 - 0.06 * (dI - rI) + 0.7 * S[o + 12] - 10 * smoothstep(3 + 5 * s, 9 + 6 * s, dI - rI);
     if (dI > rI - 1 && ring > h) { h = ring; m = ring > -1.2 ? MAT_PLAT : MAT_SEABED; }
   }
 

@@ -17,7 +17,7 @@ function colorFor(out: RGB, x: number, z: number, h: number, m: number, ny: numb
     if (h > 0.6) { a = PAL.sandWet; b = PAL.sand; t = smoothstep(0.6, 1.6, h); }
     else { a = PAL.sandDeep; b = PAL.sandWet; t = smoothstep(-2.5, 0.6, h); }
   } else if (m === MAT_PLAT) {
-    a = PAL.platWet; b = PAL.plat; t = smoothstep(0.1, 0.8, h) * (0.6 + 0.4 * n);
+    a = PAL.platWet; b = PAL.plat; t = smoothstep(-0.6, 0.3, h) * (0.6 + 0.4 * n);
   } else {
     a = PAL.seabed; b = PAL.seabedShallow; t = smoothstep(-9, -1.5, h) * (0.7 + 0.3 * n);
   }

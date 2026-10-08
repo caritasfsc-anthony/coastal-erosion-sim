@@ -159,7 +159,7 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 
 
 /* ---------- hotspots ---------- */
 #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; isolation: isolate; }
-.brand, .modes, .toolbar, #sidebar, .panel, #story, #quiz, #timeline, #toast { z-index: 10; }
+.brand, .modes, .toolbar, #sidebar, .panel, #story, #quiz, #timeline, #toast, #wave-work { z-index: 10; }
 .hs { position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 8px; transform: translate(-9px, -9px); transition: opacity .35s; will-change: transform; }
 .hs .pin { width: 18px; height: 18px; border-radius: 50%; position: relative; flex: none; background: radial-gradient(circle, #fff 0 3px, var(--aqua) 4px 6px, rgba(94, 234, 212, 0.25) 7px); box-shadow: 0 0 14px rgba(94, 234, 212, 0.7); }
 .hs .pin::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 1.5px solid rgba(94, 234, 212, 0.7); animation: pulse 2.2s ease-out infinite; }
@@ -204,3 +204,37 @@ body.story-mode #sidebar, body.quiz-mode #sidebar { opacity: 0; transform: trans
   .toolbar .icon-btn span { display: none; }
   .icon-btn { min-width: 0; }
 }
+
+/* ---------- wave-attack cues (浪擊點) ---------- */
+#strike { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 2; opacity: 0; transition: opacity .5s; --c: 255, 255, 255; --a: 94, 234, 212; }
+#strike.show { opacity: 1; }
+#strike.deposit { --a: 245, 208, 160; }
+#strike .core { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle, #fff 0 2px, rgba(var(--a), .95) 3px 5px, rgba(var(--a), 0) 7px); box-shadow: 0 0 18px rgba(var(--a), .9); }
+#strike .ring { position: absolute; left: -26px; top: -26px; width: 52px; height: 52px; border-radius: 50%; border: 2px solid rgba(var(--a), .9); box-shadow: 0 0 18px rgba(var(--a), .5), inset 0 0 12px rgba(var(--a), .35); opacity: 0; }
+#strike.hit .ring { animation: strikeHit 1.1s cubic-bezier(.2,.7,.3,1); }
+#strike.hit .ring.r2 { animation: strikeHit 1.3s cubic-bezier(.2,.7,.3,1) .12s; border-color: rgba(255, 255, 255, .85); }
+#strike.deposit .ring { animation: strikeHit 2.6s ease-out infinite; }
+#strike.deposit .ring.r2 { animation-delay: 1.3s; }
+#strike .strike-tag { position: absolute; left: 16px; top: -34px; white-space: nowrap; padding: 3px 9px; border-radius: 8px; font-size: 11.5px; letter-spacing: .12em; background: rgba(6, 20, 30, .72); border: 1px solid rgba(var(--a), .55); color: rgb(var(--a)); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+#strike .strike-tag::before { content: ''; position: absolute; left: -12px; bottom: -12px; width: 14px; height: 1px; background: rgba(var(--a), .6); transform: rotate(-45deg); transform-origin: right; }
+#strike.hit .strike-tag { animation: tagHit .6s ease-out; }
+@keyframes strikeHit { 0% { transform: scale(.25); opacity: 1; } 70% { opacity: .5; } 100% { transform: scale(2.4); opacity: 0; } }
+@keyframes tagHit { 0% { transform: translateY(0) scale(1); } 30% { transform: translateY(-3px) scale(1.08); background: rgba(var(--a), .35); color: #fff; } 100% { transform: none; } }
+
+#wave-work { position: absolute; top: 84px; left: 50%; transform: translate(-50%, -10px); width: min(560px, calc(100vw - 32px)); display: flex; gap: 12px; align-items: flex-start; padding: 11px 16px 12px 12px; opacity: 0; pointer-events: none; transition: opacity .45s, transform .45s cubic-bezier(.2,.8,.2,1); background: var(--glass-strong); }
+#wave-work.show { opacity: 1; transform: translate(-50%, 0); }
+#wave-work .ww-ico { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: linear-gradient(135deg, rgba(94, 234, 212, .25), rgba(56, 189, 248, .18)); box-shadow: inset 0 0 0 1px rgba(94, 234, 212, .35); }
+#wave-work .ww-ico svg { width: 22px; height: 22px; fill: none; stroke: var(--aqua); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+#wave-work.deposit .ww-ico { background: linear-gradient(135deg, rgba(245, 208, 160, .25), rgba(251, 146, 60, .14)); box-shadow: inset 0 0 0 1px rgba(245, 208, 160, .4); }
+#wave-work.deposit .ww-ico svg { stroke: var(--sand); }
+.ww-body { min-width: 0; }
+.ww-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ww-head b { font-size: 15px; letter-spacing: .06em; }
+.ww-head span { font-size: 10.5px; letter-spacing: .14em; color: var(--aqua); padding: 1px 8px; border-radius: 99px; border: 1px solid rgba(94, 234, 212, .3); background: rgba(94, 234, 212, .08); }
+#wave-work.deposit .ww-head span { color: var(--sand); border-color: rgba(245, 208, 160, .35); background: rgba(245, 208, 160, .08); }
+#wave-work p { margin: 4px 0 0; font-size: 13px; line-height: 1.65; color: #d7e6ea; }
+#wave-work.flash .ww-head b { animation: wwFlash 1s ease-out; }
+@keyframes wwFlash { 0% { color: var(--aqua); text-shadow: 0 0 14px rgba(94, 234, 212, .8); } 100% { color: inherit; text-shadow: none; } }
+body.ww-on #toast { top: 178px; }
+#app:has(.panel.open) #wave-work { left: calc(268px + (100% - 672px) / 2); width: min(520px, calc(100% - 690px)); }
+@media (max-width: 980px) { #wave-work, #app:has(.panel.open) #wave-work { top: 140px; left: 50%; width: calc(100vw - 32px); } body.ww-on #toast { top: 236px; } }

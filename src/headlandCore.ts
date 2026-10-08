@@ -24,6 +24,9 @@ function segSDF(k: number, S: SegState, x: number, y: number, z: number, w: numb
   const ax = Math.abs(x - HX);
   const top = top0 + (1.6 - top0) * cv.stump;
   let d = Math.max(ax - w, y - top, seg.a - 2.5 - z, z - st.zEnd);
+  // undercutting comes first: waves hammer a deepening notch at the waterline where the cave will open
+  const early = smoothstep(0.0, 0.14, p) * (1 - cv.collapse);
+  if (early > 0) d += 1.6 * early * Math.exp(-((y - 0.7) ** 2) / (y > 0.7 ? 1.4 : 0.5)) * Math.exp(-((z - zc) ** 2) / 34);
   if (cv.collapse < 1 && cv.cp > 0) {
     const cy = cv.ry * 0.22;
     const e1 = ellipsoid(x - (HX + w + 0.5), y - cy, z - zc, cv.rx, cv.ry, cv.rz);
@@ -35,10 +38,13 @@ function segSDF(k: number, S: SegState, x: number, y: number, z: number, w: numb
     const cut = Math.max(seg.a - 3 - z, z - st.z0, cutBottom - y);
     d = Math.max(d, -cut);
     if (cv.stack > 0) {
-      const dc = Math.max(Math.hypot(x - HX, z - st.zs) - st.r, y - top);
+      let dc = Math.max(Math.hypot(x - HX, z - st.zs) - st.r, y - top);
+      // waves wrap round the stack and cut a notch into its base until it topples
+      dc += 1.5 * smoothstep(0.64, 0.9, p) * (1 - 0.6 * cv.stump) * Math.exp(-((y - 0.8) ** 2) / (y > 0.8 ? 1.5 : 0.5));
       d = d + (dc - d) * cv.stack;
     }
-    const fade = smoothstep(0.54, 0.64, p) * smoothstep(0.86, 0.7, p);
+    // fallen roof blocks: dumped instantly by the collapse, then slowly ground down (attrition)
+    const fade = smoothstep(0.565, 0.6, p) * smoothstep(0.97, 0.78, p);
     if (fade > 0.01) {
       for (let i = 0; i < 6; i++) {
         const hx = hash1(k * 31 + i * 7), hz = hash1(k * 17 + i * 13 + 5), hr = hash1(k * 5 + i * 3 + 11);
@@ -46,6 +52,15 @@ function segSDF(k: number, S: SegState, x: number, y: number, z: number, w: numb
         const bz = seg.a + 1 + hz * (st.z0 - seg.a);
         const br = (1.1 + 1.9 * hr) * fade;
         d = Math.min(d, Math.hypot(x - bx, (y - 0.3) * 1.25, z - bz) - br);
+      }
+    }
+    // the toppled stack leaves a rubble apron round the stump
+    const rub = smoothstep(0.86, 0.93, p);
+    if (rub > 0.01) {
+      for (let i = 0; i < 6; i++) {
+        const a = hash1(k * 41 + i * 9) * Math.PI * 2, rr = st.r + 1 + 2.4 * hash1(k * 23 + i * 5 + 2);
+        const br = (0.9 + 1.3 * hash1(k * 7 + i * 11 + 3)) * rub;
+        d = Math.min(d, Math.hypot(x - (HX + Math.cos(a) * rr), (y - 0.1) * 1.3, z - (st.zs + Math.sin(a) * rr)) - br);
       }
     }
   }
@@ -85,7 +100,8 @@ export class HeadlandCore {
       const zc = caveZ(k);
       return { p, zc, cv: caveParams(p, headHalfWidth(zc)), st: stackGeom(k, p) };
     });
-    const notch = 0.4 + 1.1 * s;
+    // wave-cut notch along the whole headland waterline, deepening as erosion proceeds
+    const notch = 0.7 + 1.5 * s;
 
     for (let k = 0; k < nz; k++) {
       const z = oz + k * cz;
@@ -114,7 +130,7 @@ export class HeadlandCore {
           if (d < 4 && d > -4) {
             let nv = NC[id];
             if (nv !== nv) { nv = 0.9 * fbm3(x * 0.17, y * 0.2, z * 0.17, 3) + 1.5 * noise3(x * 0.055, y * 0.07, z * 0.055) + 0.22 * Math.sin(y * 1.7 + strat); NC[id] = nv; }
-            d += nv + notch * Math.exp(-((y - 0.9) ** 2) / 1.1);
+            d += nv + notch * Math.exp(-((y - 0.8) ** 2) / (y > 0.8 ? 1.5 : 0.55));
           }
           F[id] = d;
         }

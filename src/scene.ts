@@ -10,6 +10,8 @@ import { Water } from './water';
 import { LandMeshes } from './meshes';
 import { createShrubs } from './vegetation';
 import { Splash } from './splash';
+import { applyWetSheen } from './wet';
+import { CliffDebris } from './debris';
 
 export function createWorld(canvas: HTMLCanvasElement) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
@@ -67,8 +69,10 @@ export function createWorld(canvas: HTMLCanvasElement) {
   scene.add(new THREE.HemisphereLight(0xbcd7ee, 0x4a3d30, 0.55));
 
   const landMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, envMapIntensity: 0.8 });
+  applyWetSheen(landMat);
   const land = new LandMeshes(landMat);
-  scene.add(land.inner, land.outer, land.headland, createShrubs());
+  const debris = new CliffDebris();
+  scene.add(land.inner, land.outer, land.headland, debris.mesh, createShrubs());
 
   const water = new Water({ heightTex: land.heightTex, sunDir, sunColor, skyTop, skyHorizon, fogColor, fogDensity });
   scene.add(water.group);
@@ -95,7 +99,7 @@ export function createWorld(canvas: HTMLCanvasElement) {
   }
   window.addEventListener('resize', resize);
 
-  return { renderer, scene, camera, controls, sky, sun, land, water, splash, composer, sunDir };
+  return { renderer, scene, camera, controls, sky, sun, land, water, splash, composer, sunDir, debris };
 }
 
 export type World = ReturnType<typeof createWorld>;

@@ -5,12 +5,15 @@ import { LANDFORMS, PROCESSES, SEQUENCE, byId, landformState, type LandformId } 
 import { OVERVIEW, STORY } from './story';
 import { GX, HX, SEGMENTS, caveZ, cliffLine, coast0, headHalfWidth, phase, stackGeom, ISLAND } from './world';
 import { clamp } from './noise';
+import { activeStrike, strikeFor, type Strike } from './waveWork';
+import { wetUniforms } from './wet';
+import type { SplashSource } from './splash';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 const W = createWorld($('scene') as unknown as HTMLCanvasElement);
-const { camera, controls, land, water, splash, composer, sky } = W;
+const { camera, controls, land, water, splash, composer, sky, debris } = W;
 
 // geometry is rebuilt in a worker so dragging the timeline never blocks rendering
 const worker = new Worker(new URL('./buildWorker.ts', import.meta.url), { type: 'module' });
@@ -19,6 +22,8 @@ let firstBuild: (() => void) | null = null;
 worker.onmessage = (e: MessageEvent) => {
   const { s, head, terrain } = e.data;
   land.apply(head, terrain);
+  debris.update(s);
+  detectCollapses(app.built, s);
   app.built = s;
   inflight = false;
   updateSplashSources(s);
@@ -44,6 +49,8 @@ const app = {
   energy: 1,
 };
 
+let lastStageVal = 0, lastStageChange = -1e9;
+
 // ------------------------------------------------------------------ stage tween
 let stageTween: { from: number; to: number; t: number; dur: number } | null = null;
 function animateStage(to: number, dur = 1.6) {
@@ -56,6 +63,7 @@ function setStage(s: number) {
   const slider = $('stage') as HTMLInputElement;
   slider.value = String(Math.round(app.stage * 1000));
   slider.style.setProperty('--p', `${app.stage * 100}%`);
+  if (Math.abs(clamp(s) - lastStageVal) > 1e-4) { lastStageVal = clamp(s); lastStageChange = performance.now(); }
   const name = app.stage < 0.34 ? '初期' : app.stage < 0.67 ? '中期' : '後期';
   $('stage-name').textContent = `${name} · ${Math.round(app.stage * 100)}%`;
   const years = Math.round((app.stage * 8000) / 100) * 100;
@@ -81,11 +89,14 @@ function focusLandform(id: LandformId, stage = app.stage, dur = 1.8) {
 }
 
 
+// the highlighted strike zone is also a (stronger) splash source; it is mutated in place every frame
+const strikeSrc: SplashSource = { p: new THREE.Vector3(), n: new THREE.Vector3(1, 0, 0), w: 1.2, face: 12, key: 'strike' };
+
 function updateSplashSources(s: number) {
-  const src: { p: THREE.Vector3; n: THREE.Vector3; w: number }[] = [];
-  const add = (x: number, z: number, nx: number, nz: number, w: number) =>
-    src.push({ p: new THREE.Vector3(x, 0, z), n: new THREE.Vector3(nx, 0, nz).normalize(), w });
-  // headland: still-attached blocks and stacks
+  const src: SplashSource[] = [];
+  const add = (key: string, x: number, z: number, nx: number, nz: number, w: number, face: number) =>
+    src.push({ key, p: new THREE.Vector3(x, 0, z), n: new THREE.Vector3(nx, 0, nz).normalize(), w, face });
+  // headland: waves wrap round the tip and pound both flanks of every still-attached block, and every stack
   let tip = 28;
   for (let k = SEGMENTS.length - 1; k >= 0; k--) {
     const p = phase(s, k);
@@ -93,24 +104,101 @@ function updateSplashSources(s: number) {
     if (p < 0.6) {
       tip = Math.max(tip, sg.b);
       const zm = (sg.a + sg.b) / 2, w = headHalfWidth(zm);
-      add(HX + w + 1, zm, 1, 0.4, 1); add(HX - w - 1, zm, -1, 0.4, 0.8);
+      add(`h${k}e`, HX + w + 0.6, zm, 1, 0.4, 1, 16); add(`h${k}w`, HX - w - 0.6, zm, -1, 0.4, 0.8, 16);
+      add(`h${k}e2`, HX + w + 0.6, sg.a + 3, 1, 0.3, 0.7, 16);
     } else if (p < 0.98) {
       const st = stackGeom(k, p);
-      const r = p > 0.85 ? st.r : st.r + 0.5;
-      add(HX, st.zs + r, 0, 1, 1.4); add(HX + r, st.zs, 1, 0.3, 0.7); add(HX - r, st.zs, -1, 0.3, 0.6);
+      const r = st.r + 0.4, face = p > 0.88 ? 2 : 16;
+      add(`s${k}n`, HX, st.zs + r, 0, 1, 1.4, face); add(`s${k}e`, HX + r, st.zs, 1, 0.3, 0.8, face); add(`s${k}w`, HX - r, st.zs, -1, 0.3, 0.7, face);
     }
   }
-  add(HX, tip + 1, 0, 1, 2);
-  // straight cliff coast (waves break on the platform edge / cliff toe)
-  for (let x = 48; x <= 150; x += 12) {
+  add('tip', HX, tip + 0.8, 0, 1, 2, 16);
+  // straight cliff coast: surf breaks on the platform edge, then the surge slams into the cliff toe
+  for (let x = 46; x <= 152; x += 9) {
     if (Math.abs(x - GX) < 4) continue;
-    const z = s < 0.25 ? cliffLine(x, s) + 1.2 : coast0(x) + 6;
-    add(x, z, 0, 1, 0.9);
+    add(`c${x}`, x, cliffLine(x, s) + 0.7, 0, 1, 0.85, 20);
+    if (s > 0.12) add(`e${x}`, x + 4, coast0(x) + 6, 0, 1, 0.45, 1.5);
   }
-  for (let x = -150; x <= -104; x += 10) add(x, cliffLine(x, s) + 1.5, 0, 1, 0.5);
-  add(ISLAND.x - 10, ISLAND.z + ISLAND.r - 2, 0, 1, 0.9);
-  add(ISLAND.x + 12, ISLAND.z + ISLAND.r - 6, 0.6, 1, 0.9);
+  for (let x = -150; x <= -104; x += 10) add(`w${x}`, x, cliffLine(x, s) + 1.2, 0, 1, 0.5, 18);
+  add('i1', ISLAND.x - 10, ISLAND.z + ISLAND.r - 2, 0, 1, 0.9, 14);
+  add('i2', ISLAND.x + 12, ISLAND.z + ISLAND.r - 6, 0.6, 1, 0.9, 14);
+  src.push(strikeSrc);
   splash.sources = src;
+}
+
+// ------------------------------------------------------------------ wave-attack cues (浪擊點)
+let watch: { id: LandformId; sTarget: number; until: number } | null = null;
+let strike: Strike | null = null;
+let shake = 0;
+const strikeEl = $('strike');
+const wwEl = $('wave-work');
+let wwShown = false, wwTitle = '';
+
+function currentStrike(): Strike | null {
+  if (app.mode === 'quiz') return null;
+  if (watch && performance.now() < watch.until) return strikeFor(watch.id, app.stage, watch.sTarget);
+  if (app.mode === 'story') {
+    const st = STORY[storyIdx];
+    return st.focus ? strikeFor(st.focus, app.stage, st.stage) : activeStrike(app.stage);
+  }
+  return activeStrike(app.stage);
+}
+function cuesWanted(now: number): boolean {
+  if (app.mode === 'quiz') return false;
+  return app.mode === 'story' || app.playing || !!stageTween || (watch !== null && now < watch.until) || now - lastStageChange < 2600;
+}
+function updateStrike(now: number) {
+  strike = currentStrike();
+  const show = !!strike && cuesWanted(now);
+  if (strike) {
+    strikeSrc.p.copy(strike.pos); strikeSrc.n.copy(strike.n).normalize(); strikeSrc.face = strike.face;
+    strikeSrc.w = strike.deposit ? 0 : show ? 2.2 : 1.1;
+    strikeSrc.active = show && !strike.deposit;
+  } else { strikeSrc.w = 0; strikeSrc.active = false; }
+  if (show !== wwShown) { wwShown = show; wwEl.classList.toggle('show', show); strikeEl.classList.toggle('show', show); document.body.classList.toggle('ww-on', show); }
+  if (strike && strike.title !== wwTitle) {
+    wwTitle = strike.title;
+    $('ww-title').textContent = strike.title;
+    $('ww-text').textContent = strike.text;
+    $('ww-proc').textContent = strike.deposit ? '波浪折射 · 沉積作用' : '水力作用 · 磨蝕作用';
+    wwEl.classList.toggle('deposit', !!strike.deposit);
+    strikeEl.classList.toggle('deposit', !!strike.deposit);
+    $('strike-lbl').textContent = strike.deposit ? '沉積區' : '浪擊點';
+    wwEl.classList.remove('flash'); void wwEl.offsetWidth; wwEl.classList.add('flash');
+  }
+}
+splash.onImpact = (src) => {
+  if (!src.active) return;
+  strikeEl.classList.remove('hit'); void strikeEl.offsetWidth; strikeEl.classList.add('hit');
+};
+const tmpS = new THREE.Vector3();
+function projectStrike() {
+  if (!strike || !wwShown) return;
+  tmpS.copy(strike.pos).project(camera);
+  const vis = tmpS.z < 1 && Math.abs(tmpS.x) < 1.1 && Math.abs(tmpS.y) < 1.1;
+  strikeEl.style.opacity = vis ? '' : '0';
+  const x = (tmpS.x * 0.5 + 0.5) * window.innerWidth, y = (-tmpS.y * 0.5 + 0.5) * window.innerHeight;
+  strikeEl.style.transform = `translate(${x}px, ${y}px)`;
+}
+
+/** Arch roofs and stacks collapse as discrete events when the timeline sweeps through them. */
+function detectCollapses(prev: number, s: number) {
+  if (!(s > prev) || s - prev > 0.06) return;
+  for (let k = 0; k < SEGMENTS.length; k++) {
+    const p0 = phase(prev, k), p1 = phase(s, k);
+    const zc = caveZ(k);
+    if (p0 < 0.575 && p1 >= 0.575) {
+      splash.collapse(new THREE.Vector3(HX, 0, zc), headHalfWidth(zc) * 0.8, 10);
+      shake = Math.max(shake, 0.9);
+      toast('轟！拱頂崩塌——海蝕拱變成海蝕柱');
+    }
+    if (p0 < 0.9 && p1 >= 0.9) {
+      const st = stackGeom(k, p1);
+      splash.collapse(new THREE.Vector3(HX, 0, st.zs), st.r + 1, 8);
+      shake = Math.max(shake, 0.6);
+      toast('柱腳被蝕斷，海蝕柱倒塌成海蝕殘柱');
+    }
+  }
 }
 
 // ------------------------------------------------------------------ hotspots
@@ -236,7 +324,8 @@ $('info-jump').addEventListener('click', () => {
   const from = Math.max(0, lf.bestStage - (lf.id === 'platform' || lf.id === 'tombolo' || lf.id === 'beach' ? 0.7 : 0.28));
   setStage(from);
   focusLandform(lf.id, lf.bestStage, 1.2);
-  setTimeout(() => animateStage(lf.bestStage, 4.5), 500);
+  watch = { id: lf.id, sTarget: lf.bestStage, until: performance.now() + 9000 };
+  setTimeout(() => animateStage(lf.bestStage, 6), 500);
 });
 
 // processes panel
@@ -276,6 +365,9 @@ function applyEnergy() {
   app.energy = Number(energy.value) / 100;
   water.amplitude = 0.35 + 0.85 * app.energy;
   splash.energy = app.energy;
+  water.surge = 0.55;
+  wetUniforms.uWetBase.value = 0.8 + 0.8 * app.energy;
+  wetUniforms.uWetSurge.value = 0.9 + 1.3 * app.energy;
   energy.style.setProperty('--p', `${((Number(energy.value) - 20) / 160) * 100}%`);
   $('energy-val').textContent = app.energy < 0.7 ? '低 · 和緩' : app.energy < 1.35 ? '中 · 一般' : '高 · 風暴';
 }
@@ -317,6 +409,7 @@ function setMode(m: Mode) {
   $('quiz').classList.toggle('open', m === 'quiz');
   setPlaying(false);
   stopAuto();
+  watch = null;
   closeInfo(); closeProcess();
   if (m === 'story') gotoStory(0);
   if (m === 'quiz') startQuiz();
@@ -466,8 +559,23 @@ function frame() {
   water.update(elapsed);
   (sky.material as THREE.ShaderMaterial).uniforms.uTime.value = elapsed;
   sky.position.copy(camera.position);
-  splash.update(dt);
+  splash.update(dt, elapsed);
+  wetUniforms.uWetTime.value = elapsed;
+  wetUniforms.uWetLevel.value = lvl;
+
+  const now = performance.now();
+  updateStrike(now);
+  projectStrike();
+
+  // collapse shake: offset the camera only for this frame's render
+  let sx = 0, sy = 0;
+  if (shake > 0.001) {
+    shake *= Math.exp(-dt * 3.2);
+    sx = (Math.random() - 0.5) * shake * 0.7; sy = (Math.random() - 0.5) * shake * 0.5;
+    camera.position.x += sx; camera.position.y += sy;
+  }
   composer.render(dt);
+  camera.position.x -= sx; camera.position.y -= sy;
   projectHotspots();
   requestAnimationFrame(frame);
 }
@@ -489,4 +597,4 @@ requestAnimationFrame(() => setTimeout(boot, 30));
 
 // expose for debugging / automated screenshots
 function setView(p: [number, number, number], t: [number, number, number]) { camTween = null; camera.position.set(...p); controls.target.set(...t); controls.update(); }
-(window as unknown as Record<string, unknown>).__sim = { setView, app, setStage, animateStage, selectLandform, flyTo, flyOverview, setMode, camera, controls, caveZ };
+(window as unknown as Record<string, unknown>).__sim = { setView, app, setStage, animateStage, selectLandform, flyTo, flyOverview, setMode, camera, controls, caveZ, splash, setPlaying };
