@@ -25,15 +25,16 @@ export function colorFor(out: RGB, x: number, z: number, h: number, m: number, n
     if (h > 0.6) { a = PAL.sandWet; b = PAL.sand; t = smoothstep(0.6, 1.6, h); }
     else { a = PAL.sandDeep; b = PAL.sandWet; t = smoothstep(-2.5, 0.6, h); }
   } else if (m === MAT_PLAT) {
-    a = PAL.platWet; b = PAL.plat; t = smoothstep(-0.6, 0.3, h) * (0.6 + 0.4 * n);
+    a = PAL.platWet; b = PAL.plat; t = smoothstep(-0.5, 0.35, h) * (0.55 + 0.45 * n);
+    // brighter flat apron so students can tell platform from cliff rock
+    out[0] = lerp(a.r, b.r, t); out[1] = lerp(a.g, b.g, t); out[2] = lerp(a.b, b.b, t);
+    const al = smoothstep(0.4, 0.85, noise2(x * 0.45, z * 0.45)) * 0.28;
+    out[0] = lerp(out[0], PAL.algae.r, al); out[1] = lerp(out[1], PAL.algae.g, al); out[2] = lerp(out[2], PAL.algae.b, al);
+    return out;
   } else {
     a = PAL.seabed; b = PAL.seabedShallow; t = smoothstep(-9, -1.5, h) * (0.7 + 0.3 * n);
   }
   out[0] = lerp(a.r, b.r, t); out[1] = lerp(a.g, b.g, t); out[2] = lerp(a.b, b.b, t);
-  if (m === MAT_PLAT) {
-    const al = smoothstep(0.35, 0.8, noise2(x * 0.5, z * 0.5)) * 0.45;
-    out[0] = lerp(out[0], PAL.algae.r, al); out[1] = lerp(out[1], PAL.algae.g, al); out[2] = lerp(out[2], PAL.algae.b, al);
-  }
   return out;
 }
 
@@ -67,9 +68,9 @@ class Grid {
     this.prevM = new Uint8Array(N).fill(255);
   }
 
-  build(s: number): GridResult {
+  build(s: number, waveDir = 180): GridResult {
     const { n, step, spec, heights: hs, mats: ms } = this;
-    const K = stageConsts(s);
+    const K = stageConsts(s, waveDir);
     const smp: Sample = { h: 0, m: 0 };
     const lo = INNER.min + 1, hi = INNER.min + INNER.size - 1;
     for (let j = 0; j < n; j++) {
@@ -111,8 +112,8 @@ export class TerrainCore {
   readonly inner = new Grid(INNER_GRID);
   readonly outer = new Grid(OUTER_GRID);
 
-  buildGrids(s: number) {
-    return { inner: this.inner.build(s), outer: this.outer.build(s) };
+  buildGrids(s: number, waveDir = 180) {
+    return { inner: this.inner.build(s, waveDir), outer: this.outer.build(s, waveDir) };
   }
 
   /** Height of the original (pre geo cut-out) inner heightfield surface, interpolated exactly like its triangles. */

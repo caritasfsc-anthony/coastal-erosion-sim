@@ -54,7 +54,7 @@
           <span class="count" id="found-count">0 / 9 已探索</span>
         </div>
         <ul id="lf-list"></ul>
-        <p class="side-hint">以長洲啞鈴形為藍本的教學模型。點擊光點了解地貌形成過程。</p>
+        <p class="side-hint">長洲教學模型：初期兩島分開，後期連成沙洲。轉浪向、拖時間軸、點光點探索。</p>
       </aside>
 
       <section id="info" class="glass panel" aria-live="polite">
@@ -119,7 +119,18 @@
             <input type="range" id="stage" min="0" max="1000" value="0" aria-label="侵蝕階段" />
             <div class="tl-marks" id="tl-marks"></div>
           </div>
-          <div class="tl-ticks"><span>初期 · 岩岸新成</span><span>中期 · 洞穴與拱門</span><span>後期 · 海蝕柱與沙洲</span></div>
+          <div class="tl-ticks"><span>初期 · 兩島分開</span><span>中期 · 洞拱與水下沙洲</span><span>後期 · 連島沙洲成形</span></div>
+        </div>
+        <div class="tl-wave">
+          <label for="wave-dir">海浪方向 <b id="wave-dir-lbl">南</b></label>
+          <div class="wave-compass" id="wave-compass" title="拖動改變浪向">
+            <div class="wc-ring">
+              <span class="wc-n">N</span><span class="wc-e">E</span><span class="wc-s">S</span><span class="wc-w">W</span>
+              <div class="wc-needle" id="wave-needle"></div>
+            </div>
+          </div>
+          <input type="range" id="wave-dir" min="0" max="360" value="180" aria-label="海浪方向" />
+          <span class="wave-hint" id="wave-hint">浪從南方來 · 南氹受蝕較強</span>
         </div>
         <div class="tl-energy">
           <label for="energy">波浪能量</label>
@@ -128,12 +139,23 @@
         </div>
       </footer>
 
+      <div id="play-tip" class="glass" aria-live="polite">
+        <b>試吓轉浪向</b>
+        <span>拖動指南針或滑桿，即時睇邊岸浪花多、沙洲偏向邊邊</span>
+        <button type="button" id="tip-dismiss" class="ghost">知道了</button>
+      </div>
+      <div id="mini-goal" class="glass">
+        <div class="mg-top"><span class="info-tag">小任務</span><button type="button" id="mg-close" class="close" aria-label="關閉">×</button></div>
+        <p id="mg-text">把浪向轉到「東」，再把時間軸拖到後期——睇連島沙洲係咪偏向西側？</p>
+        <button type="button" id="mg-done" class="primary">完成 ✓</button>
+      </div>
+
       <div id="toast"></div>
       <div id="loader">
         <div class="loader-inner">
           <div class="loader-ring"></div>
           <h1>長洲海岸侵蝕實驗室</h1>
-          <p id="loader-text">正在雕刻長洲岩岸⋯</p>
+          <p id="loader-text">正在分開南北兩島⋯</p>
         </div>
       </div>
     </div>

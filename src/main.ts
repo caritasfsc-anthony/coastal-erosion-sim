@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { createWorld } from './scene';
 import { LANDFORMS, PROCESSES, SEQUENCE, byId, geoFrame, landformState, type LandformId } from './landforms';
 import { OVERVIEW, STORY } from './story';
-import { GX, HX, MANTOU, SEGMENTS, caveZ, geoHalfWidth, geoParams, geoX, groundRaw, headHalfWidth, northCliff, phase, southCliff, southCoast0, stackGeom, stageConsts } from './world';
+import { GX, HX, MANTOU, SEGMENTS, caveZ, geoHalfWidth, geoParams, geoX, groundRaw, headHalfWidth, northCliff, phase, southCliff, southCoast0, stackGeom, stageConsts, waveTravel } from './world';
 import { clamp } from './noise';
 import { activeStrike, strikeFor, type Strike } from './waveWork';
 import { wetUniforms } from './wet';
@@ -23,13 +23,12 @@ W.scene.add(guide.group);
 
 // geometry is rebuilt in a worker so dragging the timeline never blocks rendering
 const worker = new Worker(new URL('./buildWorker.ts', import.meta.url), { type: 'module' });
-let reqId = 0, inflight = false, requested = -1;
+let reqId = 0, inflight = false, requested = -1, requestedWd = -1;
 let firstBuild: (() => void) | null = null;
 worker.onmessage = (e: MessageEvent) => {
   const { s, head, terrain, geo } = e.data;
   land.apply(head, terrain, geo);
   debris.update(s);
-  W.town.update(s);
   guide.update(s);
   detectCollapses(app.built, s);
   app.built = s;
@@ -41,7 +40,8 @@ worker.onmessage = (e: MessageEvent) => {
 function requestBuild(s: number) {
   requested = s;
   inflight = true;
-  worker.postMessage({ s, id: ++reqId });
+  requestedWd = app.waveDir;
+  worker.postMessage({ s, wd: app.waveDir, id: ++reqId });
 }
 
 // ------------------------------------------------------------------ state
@@ -55,6 +55,8 @@ const app = {
   visited: new Set<LandformId>(),
   tide: 0,
   energy: 1,
+  /** Degrees FROM which waves approach: 0=N, 90=E, 180=S, 270=W */
+  waveDir: 180,
 };
 
 let lastStageVal = 0, lastStageChange = -1e9;
@@ -76,6 +78,7 @@ function setStage(s: number) {
   $('stage-name').textContent = `${name} · ${Math.round(app.stage * 100)}%`;
   const years = Math.round((app.stage * 8000) / 100) * 100;
   $('stage-years').textContent = `經過約 ${years.toLocaleString('zh-HK')} 年（示意）`;
+  if (typeof checkMiniGoal === 'function') checkMiniGoal();
 }
 
 // ------------------------------------------------------------------ camera tween
@@ -111,8 +114,13 @@ const strikeSrc: SplashSource = { p: new THREE.Vector3(), n: new THREE.Vector3(1
 
 function updateSplashSources(s: number) {
   const src: SplashSource[] = [];
-  const add = (key: string, x: number, z: number, nx: number, nz: number, w: number, face: number) =>
-    src.push({ key, p: new THREE.Vector3(x, 0, z), n: new THREE.Vector3(nx, 0, nz).normalize(), w, face });
+  const travel = waveTravel(app.waveDir);
+  const add = (key: string, x: number, z: number, nx: number, nz: number, w: number, face: number) => {
+    const n = new THREE.Vector3(nx, 0, nz).normalize();
+    // head-on exposure: waves travel into the face
+    const hit = Math.max(0.15, -n.x * travel.dx - n.z * travel.dz);
+    src.push({ key, p: new THREE.Vector3(x, 0, z), n, w: w * (0.35 + 1.4 * hit), face });
+  };
   // NE headland tip: pound flanks and stacks
   let tip = 90;
   for (let k = SEGMENTS.length - 1; k >= 0; k--) {
@@ -556,6 +564,8 @@ $('quiz-skip').addEventListener('click', () => {
 });
 
 function onHotspotClick(id: LandformId) {
+  const h = hotspots.find((x) => x.id === id);
+  if (h) { h.el.classList.remove('pop'); void h.el.offsetWidth; h.el.classList.add('pop'); }
   if (app.mode === 'quiz') { quizAnswer(id); return; }
   selectLandform(id, true);
 }
@@ -584,7 +594,7 @@ function frame() {
     setStage(app.stage + dt / 36);
     if (app.stage >= 1) setPlaying(false);
   }
-  if (!inflight && Math.abs(app.stage - requested) > 0.0005) requestBuild(app.stage);
+  if (!inflight && (Math.abs(app.stage - requested) > 0.0005 || Math.abs(app.waveDir - requestedWd) > 0.5)) requestBuild(app.stage);
 
   if (camTween) {
     camTween.t += dt / camTween.dur;
@@ -625,14 +635,105 @@ function frame() {
   requestAnimationFrame(frame);
 }
 
+
+// ------------------------------------------------------------------ wave direction (海浪方向)
+const DIR_NAMES: [number, string, string][] = [
+  [0, '北', '北岸／海蝕隙受浪較強'],
+  [45, '東北', '東北岩岬浪擊加強'],
+  [90, '東', '東岸受蝕 · 沙偏向西側堆積'],
+  [135, '東南', '南氹與饅頭石一帶浪強'],
+  [180, '南', '南氹海崖受蝕較強'],
+  [225, '西南', '西南岸浪強 · 東灣較受掩護'],
+  [270, '西', '西岸受蝕 · 沙偏向東灣堆積'],
+  [315, '西北', '西北岸浪強'],
+];
+function dirLabel(deg: number): [string, string] {
+  let best = DIR_NAMES[0], bd = 999;
+  for (const d of DIR_NAMES) {
+    const diff = Math.min(Math.abs(deg - d[0]), 360 - Math.abs(deg - d[0]));
+    if (diff < bd) { bd = diff; best = d; }
+  }
+  return [best[1], best[2]];
+}
+function applyWaveDir(deg: number, rebuild = true) {
+  deg = ((deg % 360) + 360) % 360;
+  app.waveDir = deg;
+  const slider = $('wave-dir') as HTMLInputElement;
+  slider.value = String(Math.round(deg));
+  slider.style.setProperty('--p', `${(deg / 360) * 100}%`);
+  const [name, hint] = dirLabel(deg);
+  $('wave-dir-lbl').textContent = name;
+  $('wave-hint').textContent = `浪從${name}方來 · ${hint}`;
+  $('wave-needle').style.transform = `rotate(${deg}deg)`;
+  // baked swell travels from N; UI degrees are "from", so shader rot = -rad
+  water.setWaveAngle((-deg * Math.PI) / 180);
+  if (rebuild) {
+    updateSplashSources(app.built);
+    // force terrain rebuild for sand lee bias
+    requestedWd = -999;
+  }
+  checkMiniGoal();
+}
+const waveDirEl = $('wave-dir') as HTMLInputElement;
+waveDirEl.addEventListener('input', () => {
+  applyWaveDir(Number(waveDirEl.value), true);
+  toast(`海浪方向：${dirLabel(app.waveDir)[0]} —— ${dirLabel(app.waveDir)[1]}`, 1800);
+});
+// drag on compass
+(() => {
+  const el = $('wave-compass');
+  let dragging = false;
+  const setFromEvent = (e: PointerEvent) => {
+    const r = el.getBoundingClientRect();
+    const x = e.clientX - r.left - r.width / 2;
+    const y = e.clientY - r.top - r.height / 2;
+    // needle points toward wave origin (from); 0 = north = up = -Y in screen
+    let deg = (Math.atan2(x, -y) * 180) / Math.PI;
+    if (deg < 0) deg += 360;
+    applyWaveDir(deg, true);
+  };
+  el.addEventListener('pointerdown', (e) => { dragging = true; el.setPointerCapture(e.pointerId); setFromEvent(e); });
+  el.addEventListener('pointermove', (e) => { if (dragging) setFromEvent(e); });
+  el.addEventListener('pointerup', () => { dragging = false; toast(`海浪方向：${dirLabel(app.waveDir)[0]}`, 1400); });
+})();
+
+// play tip + mini goal
+const tipEl = $('play-tip');
+const mgEl = $('mini-goal');
+let tipShown = false;
+setTimeout(() => {
+  if (!tipShown && app.mode === 'explore') { tipEl.classList.add('show'); tipShown = true; }
+}, 5200);
+$('tip-dismiss').addEventListener('click', () => {
+  tipEl.classList.remove('show');
+  setTimeout(() => mgEl.classList.add('show'), 600);
+});
+$('mg-close').addEventListener('click', () => mgEl.classList.remove('show'));
+let mgDone = false;
+function checkMiniGoal() {
+  if (mgDone || !mgEl.classList.contains('show')) return;
+  // goal: wave from east (70–110) and late stage
+  const east = Math.min(Math.abs(app.waveDir - 90), 360 - Math.abs(app.waveDir - 90)) < 25;
+  if (east && app.stage > 0.7) {
+    $('mg-text').textContent = '做得好！浪從東方來時，沙偏向西側堆積——這就是背浪面沉積。';
+    $('mg-done').textContent = '太棒了 ✓';
+  }
+}
+$('mg-done').addEventListener('click', () => {
+  mgDone = true;
+  mgEl.classList.remove('show');
+  toast('小任務完成！繼續拖時間軸或轉浪向探索', 2800);
+});
+
 // ------------------------------------------------------------------ boot
 function boot() {
   setStage(0);
   applyEnergy();
+  applyWaveDir(180, false);
   firstBuild = () => setTimeout(() => {
     $('loader').classList.add('done');
     flyOverview(4.2);
-    setTimeout(() => toast('長洲教學模型 · 拖曳旋轉 · 點擊光點探索 · 拖動時間軸觀察侵蝕', 4200), 1800);
+    setTimeout(() => toast('初期兩島分開 · 拖時間軸睇連島沙洲 · 轉海浪方向睇沉積偏向', 4800), 1600);
   }, 250);
   requestBuild(0);
   requestAnimationFrame(frame);
@@ -646,4 +747,4 @@ function snap() {
   if (stageTween) { setStage(stageTween.to); stageTween = null; }
   if (camTween) { camera.position.copy(camTween.p1); controls.target.copy(camTween.t1); camTween = null; controls.update(); }
 }
-(window as unknown as Record<string, unknown>).__sim = { snap, focusLandform, V3: THREE.Vector3, world: W, setView, app, setStage, animateStage, selectLandform, flyTo, flyOverview, setMode, camera, controls, caveZ, splash, setPlaying };
+(window as unknown as Record<string, unknown>).__sim = { snap, focusLandform, V3: THREE.Vector3, world: W, setView, app, setStage, animateStage, selectLandform, flyTo, flyOverview, setMode, camera, controls, caveZ, splash, setPlaying, applyWaveDir };

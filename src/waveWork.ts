@@ -79,10 +79,10 @@ export function strikeFor(id: LandformId, s: number, sTarget = s): Strike {
       const pos = landformState(id, s).pos.clone(); pos.y = 0.8;
       return {
         pos, n: new THREE.Vector3(0, 0, 1), face: 1, deposit: true,
-        title: id === 'beach' ? '東灣：低能量海灣沉積' : '長洲腰部：連島沙洲伸展',
+        title: id === 'beach' ? '東灣：低能量海灣沉積' : '兩島之間：連島沙洲生長',
         text: id === 'beach'
-          ? '浪在岩岬折射、能量集中於岬角；東灣浪弱，建設性海浪把沙粒推上灣頭，形成新月形海灘。'
-          : '南北兩丘之間成為掩蔽區，沿岸漂移帶來的泥沙在此堆積，逐漸把兩丘連成啞鈴形。',
+          ? '浪在岩岬折射、能量集中於岬角；東灣浪弱，建設性海浪把沙粒推上灣頭，形成新月形海灘。轉浪向可改變灘面偏向。'
+          : '南北兩島之間成為掩蔽區；泥沙先堆積成水下沙洲，再露出水面把兩島連接。背浪一側沉積更明顯。',
       };
     }
     case 'cave': case 'arch': case 'stack': case 'stump': {

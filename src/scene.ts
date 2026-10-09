@@ -8,11 +8,9 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { createSky } from './sky';
 import { Water } from './water';
 import { LandMeshes } from './meshes';
-import { createShrubs } from './vegetation';
 import { Splash } from './splash';
 import { applyWetSheen } from './wet';
 import { CliffDebris } from './debris';
-import { TownBlocks, createBreakwater } from './town';
 
 export function createWorld(canvas: HTMLCanvasElement) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
@@ -73,9 +71,7 @@ export function createWorld(canvas: HTMLCanvasElement) {
   applyWetSheen(landMat);
   const land = new LandMeshes(landMat);
   const debris = new CliffDebris();
-  const town = new TownBlocks();
-  const breakwater = createBreakwater();
-  scene.add(land.inner, land.outer, land.headland, land.geo, debris.mesh, town.mesh, breakwater, createShrubs());
+  scene.add(land.inner, land.outer, land.headland, land.geo, debris.mesh);
 
   const water = new Water({ heightTex: land.heightTex, sunDir, sunColor, skyTop, skyHorizon, fogColor, fogDensity });
   scene.add(water.group);
@@ -102,7 +98,7 @@ export function createWorld(canvas: HTMLCanvasElement) {
   }
   window.addEventListener('resize', resize);
 
-  return { renderer, scene, camera, controls, sky, sun, land, water, splash, composer, sunDir, debris, town, breakwater };
+  return { renderer, scene, camera, controls, sky, sun, land, water, splash, composer, sunDir, debris };
 }
 
 export type World = ReturnType<typeof createWorld>;

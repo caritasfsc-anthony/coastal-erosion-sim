@@ -1,7 +1,7 @@
 // Learning content + where/when each landform exists — Cheung Chau (長洲) teaching model.
 import * as THREE from 'three';
 import {
-  H, HX, MANTOU, NECK_Z0, NECK_Z1, SEGMENTS, TOMB_X, beachWidth, caveParams, caveZ,
+  H, HX, NECK_Z0, NECK_Z1, SEGMENTS, TOMB_X, beachWidth, caveParams, caveZ,
   geoParams, geoX, headHalfWidth, headTop, phase, southCliff, southCoast0,
   stackGeom, tomboloCrest,
 } from './world';
@@ -37,12 +37,12 @@ export const LANDFORMS: Landform[] = [
     processes: ['水力作用', '磨蝕作用', '風化及塊體移動'],
     sequence: '海崖後退時會在崖腳留下浪蝕平台；岬角上的海崖沿弱點發展成海蝕洞。',
     example: '長洲南氹（Nam Tam）南岸；亦可對照西貢東部、東平洲。',
-    bestStage: 0.2, view: [28, 18, -42],
+    bestStage: 0.22, view: [22, 14, -55],
     quiz: '由崖腳的浪蝕凹壁不斷擴大、上方岩石崩塌而形成的陡峭岩壁是？',
   },
   {
     id: 'platform', zh: '浪蝕平台', en: 'Wave-cut Platform', tag: '侵蝕地貌',
-    short: '海崖後退後，在原來崖腳位置留下的一片平緩岩石台地。長洲南氹與東南岸（饅頭石一帶）均有。',
+    short: '海崖後退後，在崖腳留下的一片平坦、略向海傾的岩石台地。南氹岸可見清晰平台與凹壁對比。',
     steps: [
       '海崖受浪蝕而不斷後退。',
       '原本位於崖腳、潮間帶高度的岩石被留下，形成平緩、略向海傾斜的平台。',
@@ -52,7 +52,7 @@ export const LANDFORMS: Landform[] = [
     processes: ['磨蝕作用', '水力作用'],
     sequence: '是「海崖後退」留下的證據；海蝕柱和殘柱最後亦會被削平成平台的一部分。',
     example: '長洲南氹浪蝕平台；東南岸饅頭石附近的石台。',
-    bestStage: 0.85, view: [36, 22, -55],
+    bestStage: 0.85, view: [32, 16, -72],
     quiz: '低潮時露出水面、由海崖後退後遺留的平緩岩石台地是？',
   },
   {
@@ -145,18 +145,18 @@ export const LANDFORMS: Landform[] = [
   },
   {
     id: 'tombolo', zh: '連島沙洲', en: 'Tombolo', tag: '沉積地貌',
-    short: '沙洲把兩個島丘連接起來。長洲著名的「啞鈴」形，正是南北兩丘被中央連島沙洲相連。',
+    short: '起初南北是兩個完全分開的島；泥沙在島間掩蔽區堆積，先成水下沙洲，再露出水面，把兩島連成啞鈴形。',
     steps: [
-      '海浪遇到近岸島嶼／島丘時，繞過兩側並發生折射。',
-      '島丘之間的背浪面成為波浪能量較低的掩蔽區。',
-      '沿岸漂移帶來的泥沙在掩蔽區不斷沉積，沙洲逐漸增高、露出水面。',
-      '沙洲把南北兩丘連接，形成連島沙洲——長洲啞鈴形的「腰」。',
+      '起初南北是兩座完全獨立的島，中間是開闊水道。',
+      '海浪繞過兩島發生折射，島與島之間成為波浪能量較低的掩蔽區。',
+      '沿岸漂移帶來的泥沙在水道中堆積，先形成低潮可見的水下沙洲。',
+      '沙洲繼續增高並露出水面，把兩島連接——長洲啞鈴形的「腰」誕生。轉一轉「海浪方向」，沙洲會偏向背浪一側。',
     ],
     processes: ['波浪折射', '沿岸漂移', '沉積作用'],
-    sequence: '由侵蝕得來的沉積物，在掩蔽區重新堆積成新地貌；東側常伴生灣頭海灘。',
-    example: '長洲本身就是經典連島沙洲島嶼（南北兩丘＋中央市鎮沙洲）。',
-    bestStage: 0.92, view: [90, 70, 30],
-    quiz: '在島嶼／島丘之間沉積、把兩塊陸地連接起來的沙洲是？',
+    sequence: '由侵蝕得來的沉積物，在兩島之間的掩蔽區重新堆積；東側常伴生東灣海灘。',
+    example: '長洲本身就是經典連島沙洲島嶼（南北兩島＋中央沙洲）。',
+    bestStage: 0.92, view: [110, 85, 10],
+    quiz: '起初分開的兩島之間，泥沙堆積並露出水面、把兩島連接起來的沙洲是？',
   },
 ];
 
@@ -190,22 +190,18 @@ export function landformState(id: LandformId, s: number, out = new THREE.Vector3
     case 'cliff': {
       const x = 18;
       const cl = southCliff(x, s);
-      return { present: true, pos: out.set(x, H * 0.55, cl + 2), note: `南氹岸已後退約 ${Math.round(14 * s)} 米（示意）` };
+      return { present: true, pos: out.set(x, H * 0.62, cl + 1.2), note: `南氹：崖腳可見浪蝕凹壁 · 岸線已後退約 ${Math.round(14 * s)} 米（示意）` };
     }
     case 'platform': {
-      const x = 28;
+      const x = 22;
       const cl = southCliff(x, s);
       const c0 = southCoast0(x);
-      const w = (c0 - cl) + 8 + 10 * s;
-      // prefer Mantou / SE platform when late
-      if (s > 0.4) {
-        return {
-          present: true,
-          pos: out.set(MANTOU.x - 6, 1.4, MANTOU.z - 4),
-          note: `南氹／饅頭石一帶平台闊約 ${Math.round(w)} 米 · 圓潤巨礫為饅頭石地標`,
-        };
-      }
-      return { present: s > 0.12, pos: out.set(x, 1.2, cl - Math.max(4, w * 0.4)), note: s > 0.12 ? `平台闊約 ${Math.round(w)} 米` : '海崖剛開始後退，平台仍很窄' };
+      const w = (c0 - cl) + 16 + 18 * s;
+      return {
+        present: s > 0.1,
+        pos: out.set(x, 1.5, cl - Math.max(6, w * 0.45)),
+        note: s > 0.1 ? `南氹浪蝕平台闊約 ${Math.round(w)} 米 · 低潮時更清晰` : '海崖剛開始後退，平台仍很窄',
+      };
     }
     case 'geo': {
       const G = geoParams(s);
@@ -243,15 +239,25 @@ export function landformState(id: LandformId, s: number, out = new THREE.Vector3
     }
     case 'beach': {
       const z = (NECK_Z0 + NECK_Z1) * 0.45;
-      const x = TOMB_X + 18 + beachWidth(s) * 0.25;
-      return { present: true, pos: out.set(x, 2.0, z), note: `東灣灘面闊約 ${Math.round(beachWidth(s))} 米` };
+      const bw = beachWidth(s);
+      const x = TOMB_X + 14 + bw * 0.3;
+      return {
+        present: s > 0.32 && bw > 6,
+        pos: out.set(x, 2.0, z),
+        note: s > 0.32 ? `東灣灘面闊約 ${Math.round(bw)} 米 · 隨浪向偏向背浪側` : '沙洲尚未成形，東灣海灘仍未出現',
+      };
     }
     case 'tombolo': {
       const c = tomboloCrest(s);
       const z = (NECK_Z0 + NECK_Z1) * 0.5;
+      let note: string;
+      if (c < -3.2) note = '初期：南北兩島完全分開，中間是開闊水道';
+      else if (c < -0.6) note = '中期：水下沙洲正在堆積，低潮時隱約可見';
+      else if (c < 0.6) note = '沙洲接近露出水面，兩島快將相連';
+      else note = '後期：連島沙洲已露出，南北兩島連成啞鈴形';
       return {
-        present: c > 0.1, pos: out.set(TOMB_X + 2, Math.max(1.6, c + 1.4), z),
-        note: c > 0.1 ? '長洲腰部：沙洲已露出，連接南北兩丘' : c > -1.5 ? '沙洲正在水下堆積，低潮時或會露出' : '南北兩丘之間開始有泥沙沉積',
+        present: true, pos: out.set(TOMB_X + 2, Math.max(1.2, c + 1.6), z),
+        note,
       };
     }
   }

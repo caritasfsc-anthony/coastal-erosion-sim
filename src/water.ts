@@ -13,10 +13,17 @@ export const WAVES = [
   return { ...w, dx: w.dx / l, dz: w.dz / l, k, om: Math.sqrt(9.8 * k) * w.spd };
 });
 
+/** Wave approach angle in radians (0 = default baked dirs). Rotates sample space so spray matches GPU. */
+let _waveAng = 0;
+export function setWaveAngleRad(a: number) { _waveAng = a; }
+export function getWaveAngleRad() { return _waveAng; }
+
 /** Normalised swell height (≈ -1…1) at (x, z) and time t — identical phase to the shader. */
 export function waveHeight(x: number, z: number, t: number): number {
+  const c = Math.cos(-_waveAng), s = Math.sin(-_waveAng);
+  const rx = c * x - s * z, rz = s * x + c * z;
   let h = 0;
-  for (const w of WAVES) h += w.A * Math.sin(w.k * (w.dx * x + w.dz * z) - w.om * t);
+  for (const w of WAVES) h += w.A * Math.sin(w.k * (w.dx * rx + w.dz * rz) - w.om * t);
   return h;
 }
 
@@ -39,11 +46,13 @@ float landH(vec2 xz){ vec2 uv=(xz-uHeightRect.xy)/uHeightRect.z;
 `;
 
 const vert = /* glsl */ `
-uniform float uTime; uniform float uAmp; uniform float uLevel; uniform float uSurge;
+uniform float uTime; uniform float uAmp; uniform float uLevel; uniform float uSurge; uniform float uWaveAng;
 varying vec3 vWorld; varying vec3 vN; varying float vCrest; varying float vSurge;
 ${LAND}
-void gerstner(vec2 D, float L, float A, float Q, float spd, vec2 p, float t, inout vec3 P, inout vec3 N){
-  float k = 6.28318/L; float w = sqrt(9.8*k)*spd; float f = k*dot(D,p) - w*t;
+void gerstner(vec2 D0, float L, float A, float Q, float spd, vec2 pWorld, float t, inout vec3 P, inout vec3 N){
+  float ca = cos(uWaveAng), sa = sin(uWaveAng);
+  vec2 D = vec2(ca*D0.x - sa*D0.y, sa*D0.x + ca*D0.y);
+  float k = 6.28318/L; float w = sqrt(9.8*k)*spd; float f = k*dot(D,pWorld) - w*t;
   float c = cos(f), s = sin(f);
   P.x += Q*A*D.x*c; P.z += Q*A*D.y*c; P.y += A*s;
   N.x -= D.x*k*A*c; N.z -= D.y*k*A*c; N.y -= Q*k*A*s;
@@ -58,8 +67,9 @@ void main(){
   vec3 P = vec3(p.x, uLevel, p.y); vec3 N = vec3(0.0,1.0,0.0);
   ${GERSTNER_CALLS}
   vCrest = (P.y-uLevel)/max(0.2, 0.9*a+0.001);
-  // surge / run-up: each arriving crest pushes a sheet of water up the platform and against the rock
-  float hNorm = ${WAVES.map((w) => `${f(w.A)}*sin(${f(w.k)}*dot(vec2(${f(w.dx)},${f(w.dz)}), p) - ${f(w.om)}*uTime)`).join(' + ')};
+  // surge / run-up — phase uses rotated wave dirs (same as gerstner)
+  float _ca = cos(uWaveAng), _sa = sin(uWaveAng);
+  float hNorm = ${WAVES.map((w) => `${f(w.A)}*sin(${f(w.k)}*dot(vec2(_ca*${f(w.dx)}-_sa*${f(w.dz)},_sa*${f(w.dx)}+_ca*${f(w.dz)}), p) - ${f(w.om)}*uTime)`).join(' + ')};
   float surge = pow(clamp(hNorm*1.15, 0.0, 1.0), 2.0);
   float nearShore = 1.0 - smoothstep(-0.5, 4.5, depth);
   P.y += uSurge*uAmp*surge*nearShore*far;
@@ -139,7 +149,7 @@ export class Water {
 
   constructor(o: WaterOptions) {
     this.uniforms = {
-      uTime: { value: 0 }, uAmp: { value: 1 }, uLevel: { value: 0 }, uSurge: { value: 0.75 },
+      uTime: { value: 0 }, uAmp: { value: 1 }, uLevel: { value: 0 }, uSurge: { value: 0.75 }, uWaveAng: { value: 0 },
       uHeight: { value: o.heightTex },
       uHeightRect: { value: new THREE.Vector3(INNER.min, INNER.min, INNER.size) },
       uSunDir: { value: o.sunDir }, uSunColor: { value: o.sunColor },
@@ -164,4 +174,9 @@ export class Water {
   set level(v: number) { this.uniforms.uLevel.value = v; }
   set surge(v: number) { this.uniforms.uSurge.value = v; }
   get level(): number { return this.uniforms.uLevel.value; }
+  /** Extra rotation (rad) applied on top of baked wave dirs. */
+  setWaveAngle(rad: number) {
+    this.uniforms.uWaveAng.value = rad;
+    setWaveAngleRad(rad);
+  }
 }
