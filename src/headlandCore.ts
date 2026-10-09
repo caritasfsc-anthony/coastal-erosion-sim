@@ -5,9 +5,10 @@ import { surfaceNets } from './surfaceNets';
 import { rockColor, type RGB } from './palette';
 
 export const DOMAIN = {
-  origin: [HX - 25, -3.2, 9] as [number, number, number],
-  cell: [0.72, 0.6, 0.78] as [number, number, number],
-  n: [71, 49, 126] as [number, number, number],
+  // NE tip of Cheung Chau teaching silhouette (海蝕洞→拱→柱)
+  origin: [HX - 22, -3.2, 82] as [number, number, number],
+  cell: [0.68, 0.58, 0.72] as [number, number, number],
+  n: [66, 46, 98] as [number, number, number],
 };
 
 function ellipsoid(x: number, y: number, z: number, rx: number, ry: number, rz: number): number {

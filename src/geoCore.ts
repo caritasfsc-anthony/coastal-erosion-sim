@@ -11,9 +11,10 @@ import { colorFor, rockWithJoint } from './terrainCore';
 import type { HeadlandMesh } from './headlandCore';
 
 export const GEO_DOMAIN = {
-  origin: [GX - 12, -3.0, -57] as [number, number, number],
+  // North-coast 海蝕隙 cutting inland (−Z) from the rocky shore
+  origin: [GX - 12, -3.0, 85] as [number, number, number],
   cell: [0.42, 0.5, 0.5] as [number, number, number],
-  n: [58, 58, 146] as [number, number, number],
+  n: [58, 58, 120] as [number, number, number],
 };
 
 const INTERIOR: RGB = [0.05, 0.055, 0.06];

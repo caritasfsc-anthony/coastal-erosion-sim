@@ -1,40 +1,43 @@
-// Pure world model: every landform is a function of the erosion stage s ∈ [0, 1].
+// Pure world model: Cheung Chau (長洲) teaching silhouette.
+// Every landform is a function of the erosion stage s ∈ [0, 1].
+// +X = east, +Z = north. Simplified pedagogical model inspired by 3d.map.gov.hk — not survey data.
 import { bump, clamp, fbm2, lerp, noise2, smoothstep } from './noise';
 
-export const H = 20; // mainland cliff height
-export const HX = 20; // headland axis (x)
-export const GX = 96; // geo (海蝕隙) x position
-export const ISLAND = { x: -128, z: 98, r: 21 };
-export const TOMB_X = -128;
+export const H = 20; // typical hill / cliff height scale
+/** NE rocky tip axis (海蝕洞→拱→柱 sequence). */
+export const HX = 28;
+/** Primary 海蝕隙 on the north rocky coast. */
+export const GX = -18;
+/** Legacy alias — island is now the whole dumbbell; kept for vegetation sampling. */
+export const ISLAND = { x: -8, z: 95, r: 42 };
+export const TOMB_X = 2; // tombolo centre line (x)
 
-export const INNER = { min: -160, size: 320, seg: 320 }; // detailed terrain region (1 unit / cell)
+export const INNER = { min: -180, size: 360, seg: 360 }; // detailed terrain (1 unit / cell)
 
 export const MAT_LAND = 0, MAT_SAND = 1, MAT_PLAT = 2, MAT_SEABED = 3;
 
-/** Headland is split into joint-bounded blocks; each runs cave → arch → stack → stump with a delay. */
+/** NE tip headland blocks (joint-bounded); each runs cave → arch → stack → stump. */
 export interface Segment { a: number; b: number; d: number; }
 export const SEGMENTS: Segment[] = [
-  { a: 80, b: 100, d: 0.0 },
-  { a: 62, b: 80, d: 0.3 },
-  { a: 44, b: 62, d: 0.55 },
-  { a: 28, b: 44, d: 0.8 },
+  { a: 128, b: 148, d: 0.0 },
+  { a: 112, b: 128, d: 0.3 },
+  { a: 98, b: 112, d: 0.55 },
+  { a: 86, b: 98, d: 0.8 },
 ];
-export const HEAD_BODY_END = 28;
+export const HEAD_BODY_END = 86;
 
 export const phase = (s: number, k: number): number => clamp(s - SEGMENTS[k].d);
 export const caveZ = (k: number): number => SEGMENTS[k].a + 6;
 
 export function headHalfWidth(z: number): number {
-  return lerp(16, 10.5, clamp((z - 10) / 90)) + 1.4 * noise2(z * 0.07, 3.3);
+  return lerp(11, 7.5, clamp((z - 86) / 62)) + 1.1 * noise2(z * 0.07, 3.3);
 }
 export function headTop(x: number, z: number): number {
-  return H - 0.045 * Math.max(0, z - 10) + 1.1 * fbm2(x * 0.045 + 3.1, z * 0.045, 3);
+  return 16 - 0.04 * Math.max(0, z - 90) + 1.0 * fbm2(x * 0.05 + 3.1, z * 0.05, 3);
 }
 
-/** Cave/arch geometry parameters for a segment phase p. */
+/** Cave/arch geometry for a segment phase p. */
 export function caveParams(p: number, w: number) {
-  // Wave attack works from the waterline inwards: the cave first pushes deep into the rock as a low
-  // slot at the notch (rx), and only later grows upward (ry) as the roof is quarried away.
   const cp = smoothstep(0.08, 0.38, p);
   const tall = smoothstep(0.18, 0.42, p);
   const ap = smoothstep(0.38, 0.58, p);
@@ -57,167 +60,284 @@ export function stackGeom(k: number, p: number) {
   const zEnd = seg.b - 3.5 * smoothstep(0.6, 1, p);
   const zs = (z0 + zEnd) * 0.5;
   const r0 = Math.min(headHalfWidth(zs), (zEnd - z0) * 0.5);
-  const r = lerp(r0, 4.6, smoothstep(0.65, 0.97, p));
+  const r = lerp(r0, 4.2, smoothstep(0.65, 0.97, p));
   return { zs, r, z0, zEnd };
 }
 
-// ---------- coastline ----------
-export function coast0(x: number): number {
-  let c = 8 + 3 * noise2(x * 0.035, 7.1) + 1.4 * noise2(x * 0.11, 2.3);
-  c -= 46 * bump(x, -52, 50);
-  c += 14 * smoothstep(-96, -118, x);
-  return c;
-}
-export const bayW = (x: number): number => clamp(bump(x, -52, 50) * 2.2);
-export const retreat = (s: number): number => 16 * s;
-export const cliffLine = (x: number, s: number): number => coast0(x) - retreat(s) * (1 - bayW(x));
-export const beachWidth = (s: number): number => 9 + 20 * smoothstep(0, 1, s);
+// ---------- Cheung Chau silhouette (dumbbell) ----------
+/** South hillmass (larger) — 南氹 / south. */
+export const SOUTH = { x: 6, z: -88, rx: 58, rz: 74, peak: 22 };
+/** North hillmass (smaller) — rocky north tip. */
+export const NORTH = { x: -6, z: 98, rx: 40, rz: 48, peak: 17 };
+/** Tombolo / town neck z-range. */
+export const NECK_Z0 = -22, NECK_Z1 = 48;
 
-// ---------- geo (海蝕隙) ----------
-/** The vertical joint the geo is quarried along (slightly wavy, as real joints are). */
-export const geoX = (z: number): number => GX + 0.8 * Math.sin(z * 0.16) + 0.35 * noise2(z * 0.3, 4.4);
-/** Length of the open cleft, measured inland from the cliff line. Grows quickly so it reads early. */
-export const geoLength = (s: number): number => 2.5 + 29.5 * Math.pow(smoothstep(0.04, 1, s), 0.75);
-/** Heightfield is replaced by the geo's voxel mesh inside |x - geoX| < GEO_RIN (plus a hidden overlap band). */
-/** Colour of the weathered joint trace (linear RGB). */
+/** Elliptical radial distance to a hillmass (1 = rim). */
+function ellDist(x: number, z: number, m: { x: number; z: number; rx: number; rz: number }): number {
+  return Math.hypot((x - m.x) / m.rx, (z - m.z) / m.rz);
+}
+
+/** Soft island occupancy 0…1 (before stage-dependent retreat). */
+export function islandCore(x: number, z: number): number {
+  const ds = ellDist(x, z, SOUTH);
+  const dn = ellDist(x, z, NORTH);
+  const hills = Math.max(smoothstep(1.08, 0.72, ds), smoothstep(1.08, 0.72, dn));
+  // narrow central neck (連島沙洲 footprint)
+  const tn = clamp((z - NECK_Z0) / (NECK_Z1 - NECK_Z0));
+  const neckW = 11 + 9 * Math.pow(Math.abs(2 * tn - 1), 2.2); // wider near hills, narrow mid
+  const cx = TOMB_X + 3 * Math.sin(Math.PI * tn);
+  const neck = smoothstep(neckW + 4, neckW - 1.5, Math.abs(x - cx)) * smoothstep(-0.08, 0.05, tn) * smoothstep(1.08, 0.95, tn);
+  // NE rocky tip bulge for the headland root
+  const tip = smoothstep(1.2, 0.55, Math.hypot((x - HX) / 14, (z - 118) / 28)) * smoothstep(85, 100, z);
+  return Math.max(hills, neck * 0.95, tip);
+}
+
+/** North-facing cliff line (sea to the north / +Z). Retreat moves inland (−Z). */
+export function northCoast0(x: number): number {
+  const u = clamp((x - NORTH.x) / (NORTH.rx * 1.08), -1, 1);
+  let z = NORTH.z + NORTH.rz * Math.sqrt(Math.max(0, 1 - u * u));
+  z += 2.2 * noise2(x * 0.04, 9.1) + 1.1 * noise2(x * 0.12, 2.7);
+  z += 16 * bump(x, HX, 20);
+  return z;
+}
+export function northCliff(x: number, s: number): number {
+  return northCoast0(x) - retreat(s) * (0.55 + 0.45 * smoothstep(-50, 40, x)); // more retreat on exposed east-north
+}
+
+/** South-facing cliff line at 南氹 (sea to the south / −Z). Retreat moves inland (+Z). */
+export function southCoast0(x: number): number {
+  const u = clamp((x - SOUTH.x) / (SOUTH.rx * 1.08), -1, 1);
+  let z = SOUTH.z - SOUTH.rz * Math.sqrt(Math.max(0, 1 - u * u));
+  z += 2.0 * noise2(x * 0.035, 4.4) + 1.0 * noise2(x * 0.1, 1.8);
+  return z;
+}
+export function southCliff(x: number, s: number): number {
+  return southCoast0(x) + retreat(s) * (0.7 + 0.3 * bump(x, 20, 50)); // Nam Tam / SE more active
+}
+
+/** Legacy helpers used by debris / splash on the southern teaching cliff (南氹). */
+export function coast0(x: number): number { return southCoast0(x); }
+export function cliffLine(x: number, s: number): number { return southCliff(x, s); }
+export const bayW = (_x: number): number => 0;
+export const retreat = (s: number): number => 14 * s;
+export const beachWidth = (s: number): number => 10 + 18 * smoothstep(0.05, 0.9, s);
+
+// ---------- geo (海蝕隙) — north coast, cutting inland (−Z) ----------
+export const geoX = (z: number): number => GX + 0.7 * Math.sin(z * 0.14) + 0.3 * noise2(z * 0.28, 4.4);
+export const geoLength = (s: number): number => 2.5 + 26 * Math.pow(smoothstep(0.04, 1, s), 0.75);
 export const PAL_JOINT: [number, number, number] = [0.05, 0.045, 0.04];
 export const GEO_RIN = 7, GEO_BAND = 2.8, GEO_SUNK = -6;
+
 export function geoParams(s: number) {
-  const clG = cliffLine(GX, s);
+  const clG = northCliff(GX, s);
   const L = geoLength(s);
-  const zHead = clG - L;                              // back wall of the open cleft
-  const Lr = 6 * smoothstep(0.04, 0.16, s);           // still-roofed sea cave ahead of the back wall
+  const zHead = clG - L;
+  const Lr = 6 * smoothstep(0.04, 0.16, s);
   const hwMouth = 1.75 + 0.95 * smoothstep(0, 0.8, s);
   const hwHead = 1.1 + 0.45 * smoothstep(0, 1, s);
   const roofY = 4.2 + 0.8 * s;
   const br = 1.05 * smoothstep(0.14, 0.24, s);
   const bz = zHead - Lr * 0.6;
-  const blow = br > 0.05 ? { x: geoX(bz), z: bz, r: br } : null; // 噴水洞 through the cave roof
+  const blow = br > 0.05 ? { x: geoX(bz), z: bz, r: br } : null;
   return { s, clG, L, zHead, Lr, hwMouth, hwHead, roofY, blow, zIn: zHead - Lr - 3.5, zSea: clG + 6 };
 }
 export type GeoParams = ReturnType<typeof geoParams>;
-/** Half-width of the open cleft at mid height (flares into a gully across the platform seaward of the cliff). */
+
 export function geoHalfWidth(z: number, P: GeoParams): number {
   const u = clamp((P.clG - z) / P.L);
   return lerp(P.hwMouth, P.hwHead, Math.pow(u, 0.9)) + Math.max(0, z - P.clG) * 0.2;
 }
-/** Half-width of the strip where the heightfield is replaced by the geo mesh (cleft + undercut + lip + margin). */
 export function geoStripHalf(z: number, P: GeoParams): number {
   return (z < P.zHead ? P.hwHead : geoHalfWidth(z, P)) + 3.0;
 }
-/** Floor of the cleft: shallow boulder floor inland, gully that fades out on the platform. */
 export function geoFloor(z: number, P: GeoParams, top: number): number {
   const u = clamp((P.clG - z) / P.L);
   return lerp(lerp(-1.9, -0.8, u), top + 0.6, smoothstep(P.clG + 1, P.zSea - 1, z));
 }
-/** Darkening of the joint trace in the rock (0…1): the line of weakness exists before it is eroded. */
 export function jointTrace(x: number, z: number, gx: number): number {
-  return smoothstep(0.75, 0.12, Math.abs(x - gx)) * smoothstep(-58, -50, z) * smoothstep(coast0(GX) + 1.5, coast0(GX) - 0.5, z);
+  const coast = northCoast0(GX);
+  return smoothstep(0.75, 0.12, Math.abs(x - gx)) * smoothstep(coast - 55, coast - 48, z) * smoothstep(coast + 1.5, coast - 0.5, z);
 }
-export const tomboloCrest = (s: number): number => -3.2 + 4.6 * smoothstep(0.12, 0.88, s);
+
+/** Tombolo crest height (m). Negative = submerged sand bar. */
+export const tomboloCrest = (s: number): number => -1.8 + 4.2 * smoothstep(0.0, 0.55, s);
+
+/** 饅頭石 landmark (SE rocky shore). */
+export const MANTOU = { x: 58, z: -78, r: 4.2 };
 
 export interface Sample { h: number; m: number; raw?: number; rawM?: number; }
 
-/** Stage-independent terrain terms, cached per vertex (all the expensive noise lives here). */
-export const STATIC_FIELDS = 14;
+export const STATIC_FIELDS = 16;
 export function staticSample(x: number, z: number, out: Float32Array, o: number) {
-  const c0 = coast0(x);
-  const dz0 = z - c0;
-  const shelter = Math.exp(-(((x - TOMB_X) / 34) ** 2)) * smoothstep(5, 30, z) * smoothstep(110, 80, z);
-  const dxI = x - ISLAND.x, dzI = z - ISLAND.z;
-  const ang = Math.atan2(dzI, dxI);
-  const dI = Math.hypot(dxI, dzI) + 2.4 * noise2(Math.cos(ang) * 2 + 5, Math.sin(ang) * 2);
-  out[o] = c0;
-  out[o + 1] = bayW(x);
-  out[o + 2] = -1.5 - 11 * smoothstep(-4, 70, dz0) + 1.3 * fbm2(x * 0.02, z * 0.02, 3) + 7.5 * shelter;
-  out[o + 3] = H + 5 * fbm2(x * 0.012, z * 0.012, 4) + 9 * smoothstep(-30, -160, z) * (0.5 + 0.5 * fbm2(x * 0.006 + 4, z * 0.006, 3)) + Math.max(0, -z - 160) * 0.12;
-  out[o + 4] = 0.22 * noise2(x * 0.22, z * 0.22) + 0.12 * noise2(x * 0.9, z * 0.9);
-  out[o + 5] = 0.15 * noise2(x * 0.3, z * 0.3);
-  out[o + 6] = Math.abs(x - HX) < 40 && z < 12 && z > -60 ? headTop(x, z) : 0;
-  out[o + 7] = 0.22 * noise2(x * 0.25, z * 0.25) + 0.1 * noise2(x * 0.8, z * 0.8);
-  out[o + 8] = geoX(z);
-  out[o + 9] = -1.6 + 0.3 * noise2(x * 0.5, z * 0.5);
-  out[o + 10] = dI;
-  out[o + 11] = dI < ISLAND.r + 16 ? 15 + 3 * fbm2(x * 0.05, z * 0.05, 3) - dI * 0.12 : 0;
-  out[o + 12] = 0.2 * noise2(x * 0.3, z * 0.3);
-  out[o + 13] = 0.12 * noise2(x * 0.4, z * 0.4);
+  const ds = ellDist(x, z, SOUTH);
+  const dn = ellDist(x, z, NORTH);
+  const core = islandCore(x, z);
+  out[o] = southCoast0(x);           // 0 south coast0
+  out[o + 1] = northCoast0(x);       // 1 north coast0
+  out[o + 2] = core;                 // 2 island occupancy
+  out[o + 3] = ds;                   // 3 south ell dist
+  out[o + 4] = dn;                   // 4 north ell dist
+  // hill heights
+  out[o + 5] = SOUTH.peak * Math.pow(Math.max(0, 1 - ds * 0.92), 1.35) * (0.85 + 0.2 * fbm2(x * 0.02, z * 0.02, 3));
+  out[o + 6] = NORTH.peak * Math.pow(Math.max(0, 1 - dn * 0.92), 1.35) * (0.85 + 0.2 * fbm2(x * 0.025 + 2, z * 0.025, 3));
+  out[o + 7] = 0.22 * noise2(x * 0.22, z * 0.22) + 0.12 * noise2(x * 0.9, z * 0.9); // platform noise
+  out[o + 8] = geoX(z);              // 8 geo joint x
+  out[o + 9] = 0.15 * noise2(x * 0.3, z * 0.3); // beach noise
+  out[o + 10] = headTop(x, z);       // 10 headland top cache
+  out[o + 11] = 0.2 * noise2(x * 0.3, z * 0.3);
+  out[o + 12] = 0.12 * noise2(x * 0.4, z * 0.4);
+  // seabed base
+  out[o + 13] = -2.2 - 10 * (1 - core) + 1.2 * fbm2(x * 0.015, z * 0.015, 3) + 4 * core;
+  out[o + 14] = Math.hypot(x - MANTOU.x, z - MANTOU.z);
+  out[o + 15] = 0.22 * noise2(x * 0.25, z * 0.25) + 0.1 * noise2(x * 0.8, z * 0.8);
 }
 
-/** Per-stage constants shared by all vertices. */
 export function stageConsts(s: number) {
-  const rI = ISLAND.r - 2.5 * s;
   const G = geoParams(s);
   return {
-    s, R: retreat(s), wb: beachWidth(s), geo: G, geoIn: G.zIn, geoSea: G.zSea, rI,
-    tz0: cliffLine(TOMB_X, s) - 3, tz1: ISLAND.z - rI + 3, crest: tomboloCrest(s),
+    s, R: retreat(s), wb: beachWidth(s), geo: G, geoIn: G.zIn, geoSea: G.zSea,
+    crest: tomboloCrest(s),
+    nCl: (x: number) => northCliff(x, s),
+    sCl: (x: number) => southCliff(x, s),
   };
 }
 export type StageConsts = ReturnType<typeof stageConsts>;
 
-/** Height + material of the heightfield terrain at (x, z) for stage s (cheap: arithmetic only). */
+/** Height + material of the heightfield at (x, z) for stage s. */
 export function terrainSample(x: number, z: number, S: Float32Array, o: number, K: StageConsts, out: Sample): Sample {
   const s = K.s;
-  const c0 = S[o], bw = S[o + 1], seabed = S[o + 2];
-  const cl = c0 - K.R * (1 - bw);
-  const dIn = cl - z;
-  let h: number, m: number;
+  const sCoast = S[o], nCoast = S[o + 1];
+  const ds = S[o + 3], dn = S[o + 4];
+  const sCl = sCoast + K.R * (0.7 + 0.3 * bump(x, 20, 50));
+  const nCl = nCoast - K.R * (0.55 + 0.45 * smoothstep(-50, 40, x));
+  const seabed = S[o + 13];
 
-  if (dIn > 0) {
-    const hills = S[o + 3];
-    const cliffH = hills * smoothstep(-0.2, 1.4, dIn);
-    const bayLand = lerp(2.6, hills, smoothstep(2, 40, dIn));
-    h = lerp(cliffH, bayLand, bw);
-    m = MAT_LAND;
-  } else {
-    const dz = -dIn;
-    const platW = c0 + 6 - cl;
-    const hPlat = 0.02 - 0.035 * dz + 0.7 * S[o + 4];
-    const pEdge = smoothstep(platW, platW + 10, dz);
-    const hRock = lerp(hPlat, seabed, pEdge);
-    const hBeach = 2.6 - 4.6 * (dz / K.wb) + S[o + 5];
-    const hb = lerp(hBeach, seabed, smoothstep(K.wb, K.wb + 16, dz));
-    h = lerp(hRock, hb, bw);
-    if (bw > 0.5) m = h > -2.6 ? MAT_SAND : MAT_SEABED;
-    else m = pEdge < 0.55 && h > -1.2 ? MAT_PLAT : MAT_SEABED;
+  let h = seabed;
+  let m = MAT_SEABED;
+
+  // --- south hillmass (南氹 side) ---
+  if (ds < 1.25) {
+    const inland = z - sCl; // >0 = inland of south cliff
+    if (inland > 0) {
+      const hill = S[o + 5] * smoothstep(0, 8, inland);
+      const cliffFace = S[o + 5] * 0.55 * smoothstep(-0.5, 2.5, inland);
+      const landH = Math.max(hill, cliffFace);
+      if (landH > h) { h = landH; m = MAT_LAND; }
+    } else {
+      // wave-cut platform south of cliff (Nam Tam)
+      const dz = -inland;
+      const platW = (sCoast - sCl) + 8 + 10 * s;
+      const hPlat = 0.05 - 0.04 * dz + 0.65 * S[o + 7];
+      const pEdge = smoothstep(platW, platW + 12, dz);
+      const hp = lerp(hPlat, seabed, pEdge);
+      if (hp > h) { h = hp; m = pEdge < 0.55 && hp > -1.2 ? MAT_PLAT : MAT_SEABED; }
+    }
   }
 
-  // --- headland root + surrounding wave-cut platform ---
+  // --- north hillmass ---
+  if (dn < 1.25) {
+    const inland = nCl - z; // >0 = inland of north cliff
+    if (inland > 0) {
+      const hill = S[o + 6] * smoothstep(0, 7, inland);
+      const cliffFace = S[o + 6] * 0.5 * smoothstep(-0.5, 2.2, inland);
+      const landH = Math.max(hill, cliffFace);
+      if (landH > h) { h = landH; m = MAT_LAND; }
+    } else {
+      const dz = -inland;
+      const platW = (nCoast - nCl) + 5 + 6 * s;
+      const hPlat = 0.02 - 0.045 * dz + 0.6 * S[o + 7];
+      const pEdge = smoothstep(platW, platW + 10, dz);
+      const hp = lerp(hPlat, seabed, pEdge);
+      if (hp > h) { h = hp; m = pEdge < 0.55 && hp > -1.2 ? MAT_PLAT : MAT_SEABED; }
+    }
+  }
+
+  // --- secondary north clefts (decorative V-slots, photo 02) ---
+  if (s > 0.08) {
+    for (const gx of [-38, 8]) {
+      const cl = nCl + (gx + 18) * 0.02;
+      const L = 8 + 12 * smoothstep(0.08, 0.9, s);
+      if (z < cl + 2 && z > cl - L) {
+        const hw = 0.9 + 0.5 * smoothstep(0, 1, s) + Math.max(0, z - cl) * 0.15;
+        const ax = Math.abs(x - (gx + 0.5 * Math.sin(z * 0.2)));
+        if (ax < hw) {
+          const floor = lerp(-1.4, -0.5, clamp((cl - z) / L));
+          if (floor < h) { h = floor; m = MAT_SEABED; }
+        }
+      }
+    }
+  }
+
+  // --- NE headland root + surrounding platform ---
   const ax = Math.abs(x - HX);
-  if (z > -60 && z < 120 && ax < 40) {
-    const w = headHalfWidth(clamp(z, 10, 104));
-    if (z < 11.6) {
-      const shrink = smoothstep(8.6, 10.6, z);
-      const top = (S[o + 6] - shrink * 0.9) * smoothstep(w - shrink * 1.1 + 0.2, w - shrink * 1.1 - 1.2, ax);
+  if (z > 80 && z < 155 && ax < 28) {
+    const w = headHalfWidth(clamp(z, 86, 148));
+    if (z < 90) {
+      const shrink = smoothstep(86, 89, z);
+      const top = (S[o + 10] - shrink * 0.8) * smoothstep(w - shrink + 0.2, w - shrink - 1.1, ax);
       if (top > h) { h = top; m = MAT_LAND; }
     }
-    if (z > 8) {
-      const outD = Math.max(0, ax - w) + Math.max(0, z - 101);
-      const hp = -0.02 - 0.05 * outD + 0.7 * S[o + 7] - 12 * smoothstep(2.5 + 5 * s, 9 + 8 * s, outD + 9 * S[o + 4]);
+    if (z > 88) {
+      const outD = Math.max(0, ax - w) + Math.max(0, z - 148);
+      const hp = -0.02 - 0.05 * outD + 0.65 * S[o + 15] - 11 * smoothstep(2.5 + 5 * s, 9 + 8 * s, outD + 8 * S[o + 7]);
       if (hp > h) { h = hp; m = hp > -1.2 ? MAT_PLAT : MAT_SEABED; }
     }
   }
 
-  // --- offshore island ---
-  const dI = S[o + 10], rI = K.rI;
-  if (dI < rI + 16) {
-    const hI = S[o + 11] * smoothstep(rI + 0.5, rI - 1.2, dI);
-    if (hI > h) { h = hI; m = MAT_LAND; }
-    const ring = 0.05 - 0.06 * (dI - rI) + 0.7 * S[o + 12] - 10 * smoothstep(3 + 5 * s, 9 + 6 * s, dI - rI);
-    if (dI > rI - 1 && ring > h) { h = ring; m = ring > -1.2 ? MAT_PLAT : MAT_SEABED; }
-  }
-
-  // --- tombolo (連島沙洲) ---
-  const t = (z - K.tz0) / (K.tz1 - K.tz0);
-  if (t > -0.15 && t < 1.15) {
+  // --- tombolo neck (連島沙洲) ---
+  const t = (z - NECK_Z0) / (NECK_Z1 - NECK_Z0);
+  if (t > -0.12 && t < 1.12) {
     const tc = clamp(t);
-    const cx = TOMB_X + 5 * Math.sin(Math.PI * tc);
-    const hw = 5.5 + 15 * Math.pow(Math.abs(2 * tc - 1), 3);
+    const cx = TOMB_X + 3 * Math.sin(Math.PI * tc);
+    const hw = 10 + 8 * Math.pow(Math.abs(2 * tc - 1), 2.4);
     const dx = (x - cx) / hw;
-    const ht = K.crest - 3.2 * dx * dx + S[o + 13];
-    if (ht > h) { h = ht; m = ht > -2.8 ? MAT_SAND : MAT_SEABED; }
+    const ht = K.crest - 2.8 * dx * dx + S[o + 12];
+    if (ht > h) { h = ht; m = ht > -2.6 ? MAT_SAND : MAT_SEABED; }
   }
 
-  // --- geo (海蝕隙): the cleft itself is a voxel mesh (geoCore); drop the heightfield out of its way ---
+  // --- 東灣 beach (east crescent on the tombolo) ---
+  if (t > 0.08 && t < 0.92 && x > TOMB_X - 2) {
+    const tc = clamp(t);
+    const beachR = K.wb * (0.85 + 0.25 * Math.sin(Math.PI * tc)); // crescent
+    const shoreX = TOMB_X + 9 + 6 * Math.pow(Math.abs(2 * tc - 1), 1.8);
+    const dx = x - shoreX;
+    if (dx > -2 && dx < beachR + 14) {
+      const hb = 2.4 - 4.2 * (Math.max(0, dx) / beachR) + S[o + 9];
+      const edge = smoothstep(beachR, beachR + 14, dx);
+      const hh = lerp(hb, seabed, edge);
+      if (hh > h) { h = hh; m = hh > -2.4 ? MAT_SAND : MAT_SEABED; }
+    }
+  }
+
+  // --- west typhoon-shelter bay (slight indent + shallow) ---
+  if (t > 0.15 && t < 0.85 && x < TOMB_X - 6) {
+    const bay = bump(x, TOMB_X - 22, 18) * bump(z, 12, 35);
+    if (bay > 0.05) {
+      const hb = -1.2 - 2.5 * bay + S[o + 11];
+      if (hb > h && h < 1.5) { h = Math.max(h, hb); if (h < 0.2) m = MAT_SEABED; }
+    }
+  }
+
+  // --- 饅頭石 (rounded boulder on SE platform) ---
+  const dM = S[o + 14];
+  if (dM < MANTOU.r + 8) {
+    const br = MANTOU.r * (0.85 + 0.15 * s);
+    const rock = Math.max(0, br - dM) * 1.35 + 0.4 * smoothstep(br + 3, br - 0.5, dM);
+    const hy = 0.3 + rock * (1.1 - 0.15 * dM / Math.max(0.1, br));
+    // bun-like dome
+    const dome = Math.sqrt(Math.max(0, 1 - (dM / (br + 0.01)) ** 2)) * 5.2;
+    const hh = Math.max(hy, dome * smoothstep(br + 0.5, br - 0.2, dM));
+    if (hh > h) { h = hh; m = dM < br + 1.5 ? MAT_LAND : (hh > -0.8 ? MAT_PLAT : MAT_SEABED); }
+  }
+
+  // --- SE rocky platform apron around Mantou ---
+  if (x > 35 && x < 80 && z > -110 && z < -50) {
+    const plat = 0.15 - 0.03 * Math.max(0, -(z + 70)) + 0.55 * S[o + 7]
+      - 8 * smoothstep(0.4, 1.1, ellDist(x, z, { x: 50, z: -75, rx: 28, rz: 22 }));
+    if (plat > h && plat > -1.5) { h = plat; m = plat > -0.9 ? MAT_PLAT : MAT_SEABED; }
+  }
+
+  // --- geo cut-out ---
   out.raw = h; out.rawM = m;
   if (z > K.geoIn && z < K.geoSea) {
     const adx = Math.abs(x - S[o + 8]);
@@ -228,7 +348,6 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
   return out;
 }
 
-/** Ground height of the original (un-cut) terrain at (x, z) for stage s. Cheap enough for a few hundred points. */
 const _gs = new Float32Array(STATIC_FIELDS);
 const _smp: Sample = { h: 0, m: 0 };
 export function groundRaw(x: number, z: number, K: StageConsts): number {

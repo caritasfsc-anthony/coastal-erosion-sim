@@ -12,6 +12,7 @@ import { createShrubs } from './vegetation';
 import { Splash } from './splash';
 import { applyWetSheen } from './wet';
 import { CliffDebris } from './debris';
+import { TownBlocks, createBreakwater } from './town';
 
 export function createWorld(canvas: HTMLCanvasElement) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
@@ -43,7 +44,7 @@ export function createWorld(canvas: HTMLCanvasElement) {
   controls.maxDistance = 560;
   controls.maxPolarAngle = Math.PI * 0.47;
   controls.autoRotateSpeed = 0.35;
-  controls.target.set(-8, 0, 36);
+  controls.target.set(0, 0, 0);
 
   // Sky + image based lighting from the same sky shader
   const sky = createSky(sunDir, skyTop, skyHorizon, sunColor);
@@ -57,12 +58,12 @@ export function createWorld(canvas: HTMLCanvasElement) {
   scene.environmentIntensity = 0.55;
 
   const sun = new THREE.DirectionalLight(sunColor, 3.1);
-  sun.position.copy(sunDir).multiplyScalar(380).add(new THREE.Vector3(0, 0, 20));
-  sun.target.position.set(0, 0, 20);
+  sun.position.copy(sunDir).multiplyScalar(400).add(new THREE.Vector3(0, 0, 0));
+  sun.target.position.set(0, 0, 0);
   sun.castShadow = true;
   sun.shadow.mapSize.set(4096, 4096);
   const sc = sun.shadow.camera;
-  sc.left = -200; sc.right = 200; sc.top = 200; sc.bottom = -200; sc.near = 10; sc.far = 900;
+  sc.left = -220; sc.right = 220; sc.top = 220; sc.bottom = -220; sc.near = 10; sc.far = 1000;
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.6;
   scene.add(sun, sun.target);
@@ -72,7 +73,9 @@ export function createWorld(canvas: HTMLCanvasElement) {
   applyWetSheen(landMat);
   const land = new LandMeshes(landMat);
   const debris = new CliffDebris();
-  scene.add(land.inner, land.outer, land.headland, land.geo, debris.mesh, createShrubs());
+  const town = new TownBlocks();
+  const breakwater = createBreakwater();
+  scene.add(land.inner, land.outer, land.headland, land.geo, debris.mesh, town.mesh, breakwater, createShrubs());
 
   const water = new Water({ heightTex: land.heightTex, sunDir, sunColor, skyTop, skyHorizon, fogColor, fogDensity });
   scene.add(water.group);
@@ -99,7 +102,7 @@ export function createWorld(canvas: HTMLCanvasElement) {
   }
   window.addEventListener('resize', resize);
 
-  return { renderer, scene, camera, controls, sky, sun, land, water, splash, composer, sunDir, debris };
+  return { renderer, scene, camera, controls, sky, sun, land, water, splash, composer, sunDir, debris, town, breakwater };
 }
 
 export type World = ReturnType<typeof createWorld>;

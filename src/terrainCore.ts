@@ -1,11 +1,11 @@
 // Pure terrain computation (runs inside the build worker).
-import { GEO_SUNK, INNER, MAT_LAND, MAT_PLAT, MAT_SAND, PAL_JOINT, STATIC_FIELDS, geoX, jointTrace, stageConsts, staticSample, terrainSample, type Sample } from './world';
+import { GEO_SUNK, HX, INNER, MAT_LAND, MAT_PLAT, MAT_SAND, PAL_JOINT, STATIC_FIELDS, geoX, jointTrace, stageConsts, staticSample, terrainSample, type Sample } from './world';
 import { PAL, rockColor, type RGB } from './palette';
 import { lerp, noise2, smoothstep } from './noise';
 
 export interface GridSpec { min: number; size: number; seg: number; tuck: boolean; }
 export const INNER_GRID: GridSpec = { min: INNER.min, size: INNER.size, seg: INNER.seg, tuck: false };
-export const OUTER_GRID: GridSpec = { min: -704, size: 1408, seg: 352, tuck: true };
+export const OUTER_GRID: GridSpec = { min: -720, size: 1440, seg: 360, tuck: true };
 
 export interface GridResult { heights: Float32Array; normals: Float32Array; colors: Float32Array; }
 
@@ -142,7 +142,7 @@ export class TerrainCore {
         // inside the geo: water-filled cleft reads as a shallow, foaming surge channel
         h = geoTex(x, z, this.inner.raw[v]);
       } else if (h < 3) {
-        if (x > -6 && x < 46 && z > 8 && z < 107 && solidAt(x, z)) h = 4;
+        if (x > HX - 20 && x < HX + 20 && z > 85 && z < 152 && solidAt(x, z)) h = 4;
       }
       const e = Math.max(0, Math.min(255, Math.round(((h + 24) / 48) * 255)));
       tex[v * 4] = e; tex[v * 4 + 1] = e; tex[v * 4 + 2] = e; tex[v * 4 + 3] = 255;

@@ -1,7 +1,7 @@
 // Where are the waves doing the most work right now? Drives the 浪擊點 marker + caption.
 import * as THREE from 'three';
 import { landformState, type LandformId } from './landforms';
-import { HX, SEGMENTS, caveParams, caveZ, cliffLine, geoParams, geoX, headHalfWidth, headTop, phase, stackGeom } from './world';
+import { HX, SEGMENTS, caveParams, caveZ, geoParams, geoX, headHalfWidth, headTop, phase, southCliff, stackGeom } from './world';
 
 export interface Strike {
   pos: THREE.Vector3;     // point on the struck face, at the waterline
@@ -57,10 +57,10 @@ export function activeStrike(s: number): Strike {
 export function strikeFor(id: LandformId, s: number, sTarget = s): Strike {
   switch (id) {
     case 'cliff': case 'platform': {
-      const x = id === 'cliff' ? 70 : 118;
+      const x = id === 'cliff' ? 18 : 40;
       return {
-        pos: new THREE.Vector3(x, 0.8, cliffLine(x, s) + 0.6), n: new THREE.Vector3(0, 0, 1), face: 20,
-        title: id === 'cliff' ? '崖腳受浪拍打 → 海崖後退' : '海崖後退 → 平台擴闊',
+        pos: new THREE.Vector3(x, 0.8, southCliff(x, s) - 0.6), n: new THREE.Vector3(0, 0, -1), face: 20,
+        title: id === 'cliff' ? '南氹崖腳受浪拍打 → 海崖後退' : '南氹／饅頭石：海崖後退 → 平台擴闊',
         text: id === 'cliff'
           ? '浪在崖腳蝕出凹壁，上方岩石失去支撐而崩落；落石被浪捲走，海崖一步步向陸後退。'
           : '浪只能蝕到潮間帶高度，海崖後退後在崖腳留下平緩的岩台；平台愈闊，浪到崖腳前消耗的能量愈多。',
@@ -79,10 +79,10 @@ export function strikeFor(id: LandformId, s: number, sTarget = s): Strike {
       const pos = landformState(id, s).pos.clone(); pos.y = 0.8;
       return {
         pos, n: new THREE.Vector3(0, 0, 1), face: 1, deposit: true,
-        title: id === 'beach' ? '低能量海灣：沙粒沉積' : '島後掩蔽區：沙洲伸展',
+        title: id === 'beach' ? '東灣：低能量海灣沉積' : '長洲腰部：連島沙洲伸展',
         text: id === 'beach'
-          ? '浪在岬角折射、能量集中於岬角；灣內浪弱，建設性海浪把岬角蝕下的沙粒推上灣頭。'
-          : '浪繞過島嶼兩側後在島後相遇，能量驟降，沿岸漂移帶來的泥沙在此堆積成沙洲。',
+          ? '浪在岩岬折射、能量集中於岬角；東灣浪弱，建設性海浪把沙粒推上灣頭，形成新月形海灘。'
+          : '南北兩丘之間成為掩蔽區，沿岸漂移帶來的泥沙在此堆積，逐漸把兩丘連成啞鈴形。',
       };
     }
     case 'cave': case 'arch': case 'stack': case 'stump': {

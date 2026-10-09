@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { createWorld } from './scene';
 import { LANDFORMS, PROCESSES, SEQUENCE, byId, geoFrame, landformState, type LandformId } from './landforms';
 import { OVERVIEW, STORY } from './story';
-import { GX, HX, SEGMENTS, caveZ, cliffLine, coast0, geoHalfWidth, geoParams, geoX, groundRaw, headHalfWidth, phase, stackGeom, stageConsts, ISLAND } from './world';
+import { GX, HX, MANTOU, SEGMENTS, caveZ, geoHalfWidth, geoParams, geoX, groundRaw, headHalfWidth, northCliff, phase, southCliff, southCoast0, stackGeom, stageConsts } from './world';
 import { clamp } from './noise';
 import { activeStrike, strikeFor, type Strike } from './waveWork';
 import { wetUniforms } from './wet';
@@ -29,6 +29,7 @@ worker.onmessage = (e: MessageEvent) => {
   const { s, head, terrain, geo } = e.data;
   land.apply(head, terrain, geo);
   debris.update(s);
+  W.town.update(s);
   guide.update(s);
   detectCollapses(app.built, s);
   app.built = s;
@@ -112,15 +113,15 @@ function updateSplashSources(s: number) {
   const src: SplashSource[] = [];
   const add = (key: string, x: number, z: number, nx: number, nz: number, w: number, face: number) =>
     src.push({ key, p: new THREE.Vector3(x, 0, z), n: new THREE.Vector3(nx, 0, nz).normalize(), w, face });
-  // headland: waves wrap round the tip and pound both flanks of every still-attached block, and every stack
-  let tip = 28;
+  // NE headland tip: pound flanks and stacks
+  let tip = 90;
   for (let k = SEGMENTS.length - 1; k >= 0; k--) {
     const p = phase(s, k);
     const sg = SEGMENTS[k];
     if (p < 0.6) {
       tip = Math.max(tip, sg.b);
       const zm = (sg.a + sg.b) / 2, w = headHalfWidth(zm);
-      add(`h${k}e`, HX + w + 0.6, zm, 1, 0.4, 1, 16); add(`h${k}w`, HX - w - 0.6, zm, -1, 0.4, 0.8, 16);
+      add(`h${k}e`, HX + w + 0.6, zm, 1, 0.35, 1, 16); add(`h${k}w`, HX - w - 0.6, zm, -1, 0.35, 0.8, 16);
       add(`h${k}e2`, HX + w + 0.6, sg.a + 3, 1, 0.3, 0.7, 16);
     } else if (p < 0.98) {
       const st = stackGeom(k, p);
@@ -129,15 +130,19 @@ function updateSplashSources(s: number) {
     }
   }
   add('tip', HX, tip + 0.8, 0, 1, 2, 16);
-  // straight cliff coast: surf breaks on the platform edge, then the surge slams into the cliff toe
-  for (let x = 46; x <= 152; x += 9) {
-    if (Math.abs(x - GX) < 8) continue;
-    add(`c${x}`, x, cliffLine(x, s) + 0.7, 0, 1, 0.85, 20);
-    if (s > 0.12) add(`e${x}`, x + 4, coast0(x) + 6, 0, 1, 0.45, 1.5);
+  // 南氹 south cliff (sea to the south, normal −Z)
+  for (let x = -25; x <= 65; x += 9) {
+    add(`sc${x}`, x, southCliff(x, s) - 0.7, 0, -1, 0.85, 18);
+    if (s > 0.12) add(`se${x}`, x + 3, southCoast0(x) - 7, 0, -1, 0.4, 1.5);
   }
-  for (let x = -150; x <= -104; x += 10) add(`w${x}`, x, cliffLine(x, s) + 1.2, 0, 1, 0.5, 18);
-  // geo: the surge races up the slot, bursts against both walls and explodes off the back wall;
-  // the blowhole in the cave roof spouts when the same surge compresses the air below
+  // north rocky coast
+  for (let x = -55; x <= 45; x += 10) {
+    if (Math.abs(x - GX) < 8) continue;
+    add(`nc${x}`, x, northCliff(x, s) + 0.7, 0, 1, 0.75, 16);
+  }
+  // Mantou Rock
+  add('mantou', MANTOU.x, MANTOU.z + MANTOU.r * 0.3, 0.4, -0.9, 1.1, 8);
+  // geo surge
   if (s > 0.05) {
     const G = geoParams(s);
     const zb = G.zHead + 0.9;
@@ -153,8 +158,6 @@ function updateSplashSources(s: number) {
       src.push({ key: 'g-blow', p: new THREE.Vector3(G.blow.x, 0, G.blow.z), n: new THREE.Vector3(0, 0, 1), w: 0.9 * G.blow.r, face: 8, jet: top });
     }
   }
-  add('i1', ISLAND.x - 10, ISLAND.z + ISLAND.r - 2, 0, 1, 0.9, 14);
-  add('i2', ISLAND.x + 12, ISLAND.z + ISLAND.r - 6, 0.6, 1, 0.9, 14);
   src.push(strikeSrc);
   splash.sources = src;
 }
@@ -629,12 +632,12 @@ function boot() {
   firstBuild = () => setTimeout(() => {
     $('loader').classList.add('done');
     flyOverview(4.2);
-    setTimeout(() => toast('拖曳旋轉 · 滾輪縮放 · 點擊光點探索 · 拖動下方時間軸觀察侵蝕', 4200), 1800);
+    setTimeout(() => toast('長洲教學模型 · 拖曳旋轉 · 點擊光點探索 · 拖動時間軸觀察侵蝕', 4200), 1800);
   }, 250);
   requestBuild(0);
   requestAnimationFrame(frame);
 }
-($('loader-text')).textContent = '正在雕刻岩岸⋯';
+($('loader-text')).textContent = '正在雕刻長洲岩岸⋯';
 requestAnimationFrame(() => setTimeout(boot, 30));
 
 // expose for debugging / automated screenshots

@@ -1,8 +1,7 @@
-// Rock-fall debris at the foot of the straight cliff: undercut blocks drop onto the platform,
-// then get rolled around and ground down by the waves (abrasion / attrition) as the cliff retreats.
+// Rock-fall debris at the foot of the 南氹 south cliff.
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { GX, cliffLine } from './world';
+import { GX, southCliff } from './world';
 import { hash1, noise3, smoothstep } from './noise';
 import { applyWetSheen } from './wet';
 
@@ -32,13 +31,14 @@ export class CliffDebris {
     const mat = new THREE.MeshStandardMaterial({ color: 0x7a6a58, roughness: 0.9, metalness: 0, envMapIntensity: 0.8 });
     applyWetSheen(mat);
     let id = 0;
-    for (let x = 44; x <= 154; x += 1.7) {
-      if (Math.abs(x - GX) < 8.5) continue; // the geo has its own boulders
+    // Nam Tam south cliff toe debris
+    for (let x = -30; x <= 70; x += 1.8) {
+      if (Math.abs(x - GX) < 6) { id++; continue; }
       const h = hash1(id * 13 + 7);
-      if (h < 0.35) { id++; continue; }
+      if (h < 0.38) { id++; continue; }
       const born = -0.35 + 1.3 * hash1(id * 29 + 3);
       this.rocks.push({
-        x: x + (hash1(id * 5 + 1) - 0.5) * 1.6, born, off: 0.7 + 2.8 * hash1(id * 17 + 9),
+        x: x + (hash1(id * 5 + 1) - 0.5) * 1.6, born, off: -(0.8 + 2.6 * hash1(id * 17 + 9)),
         size: 0.45 + 1.05 * hash1(id * 31 + 4) ** 1.5,
         rot: new THREE.Euler(hash1(id * 3) * 6.28, hash1(id * 7) * 6.28, hash1(id * 11) * 6.28), sy: 0.6 + 0.3 * hash1(id * 19),
       });
@@ -52,10 +52,9 @@ export class CliffDebris {
   update(s: number) {
     this.rocks.forEach((r, i) => {
       const t0 = Math.max(0, r.born);
-      // appears when it falls, shrinks as waves break it down, gone ~ a quarter of the timeline later
       const vis = (r.born < 0 ? 1 : smoothstep(r.born, r.born + 0.012, s)) * (1 - smoothstep(t0 + 0.12, t0 + 0.32, s));
       const k = r.size * vis;
-      const z = cliffLine(r.x, Math.min(s, t0)) + r.off;
+      const z = southCliff(r.x, Math.min(s, t0)) + r.off;
       this.q.setFromEuler(r.rot);
       this.v.set(r.x, 0.05 + k * 0.25, z);
       this.sc.set(k, k * r.sy, k);

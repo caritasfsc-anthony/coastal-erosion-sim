@@ -107,7 +107,7 @@ export class GeoGuide {
     this.rim.geometry = ribbon(rimPts, 0.45);
     // joint: dashed trace continuing inland from the back wall (over the roofed cave + blowhole)
     const jp: THREE.Vector3[] = [];
-    const z0 = G.zHead - 0.6, z1 = Math.max(-56, G.zHead - 18);
+    const z0 = G.zHead - 0.6, z1 = G.zHead - 18;
     for (let z = z0; z >= z1; z -= 0.8) { const x = geoX(z); jp.push(new THREE.Vector3(x, groundRaw(x, z, K) + lift + 0.05, z)); }
     this.joint.geometry.dispose();
     this.joint.geometry = ribbon(jp, 0.55);
