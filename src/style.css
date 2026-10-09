@@ -312,3 +312,44 @@ body.quiz-mode #annos, body.no-labels #annos { display: none; }
   .tl-wave { display: none; }
   #play-tip, #mini-goal { bottom: 150px; }
 }
+
+
+/* ---------- lesson focus (一次一個地貌) ---------- */
+#lesson-bar {
+  position: absolute; top: 68px; left: 50%; transform: translateX(-50%);
+  z-index: 15; display: none; align-items: center; gap: 14px;
+  padding: 10px 14px 10px 16px; max-width: min(560px, calc(100vw - 36px));
+  background: var(--glass-strong);
+}
+#lesson-bar.show { display: flex; flex-wrap: wrap; }
+#lesson-bar .lb-main { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+#lesson-bar .lb-tag {
+  font-size: 10.5px; letter-spacing: 0.14em; color: var(--aqua);
+  padding: 2px 8px; border-radius: 99px; border: 1px solid rgba(94,234,212,0.35);
+  background: rgba(94,234,212,0.1);
+}
+#lesson-bar b { font-size: 16px; letter-spacing: 0.06em; }
+#lesson-bar .lb-en { font-size: 11px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+#lesson-bar #lesson-tip { margin: 0; flex: 1 1 180px; font-size: 12.5px; line-height: 1.45; color: #dbe9ec; }
+#lesson-bar #lesson-overview { flex: none; padding: 6px 12px; font-size: 12px; }
+
+body.lesson-focus .hs:not(.selected) { opacity: 0 !important; pointer-events: none !important; visibility: hidden !important; }
+body.lesson-focus #play-tip { display: none !important; }
+body.lesson-focus .hs.selected { opacity: 1 !important; }
+body.lesson-focus #sidebar li:not(.selected) { opacity: 0.38; }
+body.lesson-focus #sidebar li.selected { opacity: 1; box-shadow: inset 3px 0 0 var(--aqua); }
+
+#wave-feedback {
+  position: absolute; left: 50%; bottom: 118px; transform: translateX(-50%);
+  z-index: 14; padding: 8px 16px; border-radius: 12px;
+  background: rgba(6,20,30,0.82); border: 1px solid rgba(245,208,160,0.45);
+  color: var(--sand); font-size: 13.5px; letter-spacing: 0.04em;
+  opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis;
+}
+#wave-feedback.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (max-width: 980px) {
+  #lesson-bar { top: 120px; }
+  #wave-feedback { bottom: 150px; }
+}

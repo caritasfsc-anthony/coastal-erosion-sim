@@ -222,9 +222,10 @@ export const geoLength = (s: number): number => 2.5 + 26 * Math.pow(smoothstep(0
 export const PAL_JOINT: [number, number, number] = [0.05, 0.045, 0.04];
 export const GEO_RIN = 7, GEO_BAND = 2.8, GEO_SUNK = -6;
 
-export function geoParams(s: number) {
+export function geoParams(s: number, northHit = 1) {
   const clG = northCliff(GX, s);
-  const L = geoLength(s);
+  // Wave-facing north coast: cleft grows faster / deeper when waves arrive from the north
+  const L = geoLength(s) * (0.42 + 0.58 * Math.max(0.15, northHit));
   const zHead = clG - L;
   const Lr = 6 * smoothstep(0.04, 0.16, s);
   const hwMouth = 1.75 + 0.95 * smoothstep(0, 0.8, s);
@@ -313,18 +314,84 @@ export function waveTravel(wd: number): { dx: number; dz: number } {
   return { dx: -Math.sin(r), dz: -Math.cos(r) };
 }
 
-export function stageConsts(s: number, waveDir = 180) {
-  const G = geoParams(s);
+/** Lesson focus: animate ONE landform family; freeze the rest as a quiet backdrop. */
+export type FocusId = 'cliff' | 'platform' | 'geo' | 'cave' | 'arch' | 'stack' | 'stump' | 'beach' | 'tombolo' | null;
+
+export function lessonStages(focus: FocusId, s: number): { sand: number; cliff: number; geo: number; head: number } {
+  if (!focus) return { sand: s, cliff: s, geo: s, head: s };
+  switch (focus) {
+    case 'tombolo':
+    case 'beach':
+      return { sand: s, cliff: 0.26, geo: 0.2, head: 0.2 };
+    case 'cliff':
+    case 'platform':
+      return { sand: 0.02, cliff: s, geo: 0.14, head: 0.16 };
+    case 'geo':
+      return { sand: 0.02, cliff: 0.26, geo: s, head: 0.16 };
+    case 'cave':
+    case 'arch':
+    case 'stack':
+    case 'stump':
+      return { sand: 0.04, cliff: 0.26, geo: 0.18, head: s };
+  }
+}
+
+/** Short tip after changing wave bearing, keyed by focused lesson. */
+export function waveLessonTip(focus: FocusId, wd: number): string {
+  const names: Record<number, string> = { 0: '北', 45: '東北', 90: '東', 135: '東南', 180: '南', 225: '西南', 270: '西', 315: '西北' };
+  const name = names[((wd % 360) + 360) % 360] ?? '該';
+  const t = waveTravel(wd);
+  if (focus === 'tombolo' || focus === 'beach') {
+    // lee = down-wave side of the spit
+    const lee =
+      Math.abs(t.dx) >= Math.abs(t.dz)
+        ? (t.dx > 0 ? '東' : '西')
+        : (t.dz > 0 ? '北' : '南');
+    return `浪從${name}來 → 沙積喺背風側（偏${lee}）`;
+  }
+  if (focus === 'cliff' || focus === 'platform') {
+    const hit = Math.max(0, t.dz); // waves from S travel +Z → hit south face
+    return hit > 0.45
+      ? `浪從${name}來 → 南岸海崖／凹地受打加強`
+      : `浪從${name}來 → 南岸掩護，凹地／後退變慢`;
+  }
+  if (focus === 'geo') {
+    const nHit = Math.max(0, -t.dz); // waves from N travel −Z → hit north face
+    return nHit > 0.4
+      ? `浪從${name}來 → 北岸海蝕隙間浪湧加強`
+      : `浪從${name}來 → 北岸受浪較弱`;
+  }
+  if (focus === 'cave' || focus === 'arch' || focus === 'stack' || focus === 'stump') {
+    // NE tip faces roughly +Z/+X
+    const hit = Math.max(0, -t.dz * 0.7 - t.dx * 0.3);
+    return hit > 0.35
+      ? `浪從${name}來 → 東北岩岬浪擊／浪花加強`
+      : `浪從${name}來 → 東北岩岬較受掩護`;
+  }
+  // overview
+  const shore =
+    Math.abs(t.dx) > Math.abs(t.dz)
+      ? (t.dx > 0 ? '東岸' : '西岸')
+      : (t.dz > 0 ? '北岸' : '南岸');
+  return `浪從${name}來 → ${shore}受蝕較強 · 背風側較易積沙`;
+}
+
+export function stageConsts(s: number, waveDir = 180, focus: FocusId = null) {
+  const L = lessonStages(focus, s);
   const travel = waveTravel(waveDir);
-  // lee-side sand bias: shift sand down-wave (into the wave shadow)
   const leeX = travel.dx;
-  const leeZ = travel.dz * 0.35;
+  const leeZ = travel.dz;
+  // shore exposure 0…1 (match splash: south seaward n≈(0,-1) → hit = travel.dz)
+  const southFace = Math.max(0.12, travel.dz);
+  const northFace = Math.max(0.12, -travel.dz);
+  const G = geoParams(L.geo, northFace);
   return {
-    s, R: retreat(s), wb: beachWidth(s), geo: G, geoIn: G.zIn, geoSea: G.zSea,
-    crest: tomboloCrest(s),
-    waveDir, travel, leeX, leeZ,
-    nCl: (x: number) => northCliff(x, s),
-    sCl: (x: number) => southCliff(x, s),
+    s, focus, L,
+    R: retreat(L.cliff), wb: beachWidth(L.sand), geo: G, geoIn: G.zIn, geoSea: G.zSea,
+    crest: tomboloCrest(L.sand),
+    waveDir, travel, leeX, leeZ, southFace, northFace,
+    nCl: (x: number) => northCliff(x, L.cliff),
+    sCl: (x: number) => southCliff(x, L.cliff),
   };
 }
 export type StageConsts = ReturnType<typeof stageConsts>;
@@ -344,10 +411,12 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
   // --- south hillmass: textbook — 原本坡面 → 海蝕凹地 → 崩塌 → 陡峭海崖 + 浪蝕平台 ---
   if (ds < 1.28) {
     const inland = z - sCl; // >0 = inland of south cliff
-    // Distinct teaching beats: notch deepens first, then collapse (≈0.24) forms the cliff
-    const notchPhase = smoothstep(0.02, 0.20, s);           // 海蝕凹地加深
-    const collapsePhase = smoothstep(0.22, 0.40, s);        // 崩塌後變陡壁
-    const platPhase = smoothstep(0.24, 1.0, s);
+    const sc = K.L.cliff;
+    // Wave-facing shore notches faster (southFace high when waves from S/SE/SW)
+    const wHit = K.southFace;
+    const notchPhase = smoothstep(0.02, 0.20, sc) * (0.35 + 0.65 * wHit);
+    const collapsePhase = smoothstep(0.22, 0.40, sc) * (0.4 + 0.6 * Math.min(1, wHit + 0.25));
+    const platPhase = smoothstep(0.24, 1.0, sc) * (0.45 + 0.55 * wHit);
     const platW = Math.max(1.5, (sCoast - sCl)) + 1.5 + 28 * platPhase;
     if (inland <= 0) {
       // Wave-cut platform: flat intertidal rock; must override elevated island-core seabed
@@ -490,29 +559,29 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
   }
 
   // --- tombolo sand bridge (連島沙洲) ---
-  // Soft submerged haze → dry bridge. Fixed on TOMB_X (wave dir never shifts the bar).
-  // Growth: shore fans first → fuzzy mid bar under water → seamless dry join to both islands.
+  // Soft submerged haze → dry bridge. Soft PATH only — never a rectangular slab.
+  // Wave dir: thicken / shift into LEE (down-wave) side so students see sand respond in ~1s.
   const t = (z - NECK_Z0) / (NECK_Z1 - NECK_Z0);
-  const sandGate = smoothstep(-4.6, -1.2, K.crest);          // underwater presence
-  const midBar = smoothstep(-3.4, -0.6, K.crest);            // channel-filling soft bar
-  const shoreJoin = smoothstep(-1.1, 0.95, K.crest);         // dry land emerge (clear by late)
+  const sandGate = smoothstep(-4.6, -1.2, K.crest);
+  const midBar = smoothstep(-3.4, -0.6, K.crest);
+  const shoreJoin = smoothstep(-1.1, 0.95, K.crest);
   if (t > -0.65 && t < 1.65 && sandGate > 0.008) {
     const tc = clamp(t);
-    // Soft irregular shoreline (wave-accreted — never a hard rectangle)
     const edgeN =
-      0.55 * noise2(x * 0.042 + 1.7, z * 0.038)
-      + 0.35 * noise2(x * 0.11, z * 0.095 + 2.3)
-      + 0.22 * noise2(x * 0.24, z * 0.21)
-      + 0.14 * noise2(x * 0.52, z * 0.46)
-      + 0.08 * noise2(x * 1.1, z * 0.95);
+      0.65 * noise2(x * 0.038 + 1.7, z * 0.034)
+      + 0.42 * noise2(x * 0.1, z * 0.088 + 2.3)
+      + 0.28 * noise2(x * 0.22, z * 0.19)
+      + 0.18 * noise2(x * 0.48, z * 0.42)
+      + 0.12 * noise2(x * 1.05, z * 0.9);
 
-    // Fixed meandering centreline (NO leeX / wave-dir drift)
+    // Centreline meanders + gentle lee shift (down-wave), not a hard jump
+    const leeShift = (K.leeX * 14 + K.leeZ * 4) * Math.max(midBar, shoreJoin * 0.7) * (0.6 + 0.4 * shoreJoin);
     const cx = TOMB_X
       + 4.2 * Math.sin(Math.PI * tc)
       + 2.4 * noise2(z * 0.034, 4.1)
-      + 1.1 * noise2(z * 0.09 + 2.2, 7.3);
+      + 1.1 * noise2(z * 0.09 + 2.2, 7.3)
+      + leeShift;
 
-    // Grow from BOTH shores first, then fill the mid channel (matches soft fan screenshots)
     const shoreFans =
       Math.pow(smoothstep(0.55, -0.18, tc), 1.15)
       + Math.pow(smoothstep(0.45, 1.18, tc), 1.15);
@@ -521,96 +590,117 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
       lerp(0.22 + 0.78 * Math.min(1, shoreFans), 1.0, midBar * 0.85)
       * lerp(0.35 + 0.65 * midFill, 1.0, shoreJoin);
 
-    // Soft scalloped PATH — fat at rock toes, NARROW fuzzy waist in mid-channel (not a rectangle)
-    const baseHw = 4.2 + 5.5 * sandGate + 3.8 * midBar + 5.5 * shoreJoin;
-    // |2t-1|^p → 1 at ends, 0 at mid  ⇒  wide fans at shores, thin soft path in centre
-    const waist = 0.38 + 0.78 * Math.pow(Math.abs(2 * tc - 1), 1.15);
+    // Soft scalloped PATH — fat at rock toes, NARROW fuzzy waist mid-channel
+    const baseHw = 3.6 + 4.8 * sandGate + 3.2 * midBar + 5.0 * shoreJoin;
+    const waist = 0.32 + 0.82 * Math.pow(Math.abs(2 * tc - 1), 1.2);
     const shoreFlare = (0.55 + 1.8 * shoreJoin + 0.9 * sandGate * (1 - midBar)) * Math.pow(Math.abs(2 * tc - 1), 0.9);
-    const scallop = 0.85 * noise2(z * 0.07, 8.1) + 0.55 * noise2(z * 0.17 + 1.3, 3.4) + 0.35 * noise2(z * 0.31, 1.9);
-    const hw = baseHw * waist * (1 + shoreFlare) * (1 + 0.7 * edgeN + 0.4 * scallop);
+    const scallop = 1.05 * noise2(z * 0.065, 8.1) + 0.7 * noise2(z * 0.16 + 1.3, 3.4) + 0.45 * noise2(z * 0.3, 1.9);
+    let hw = baseHw * waist * (1 + shoreFlare) * (1 + 0.85 * edgeN + 0.55 * scallop);
 
-    const dx = (x - cx) / Math.max(2.8, hw);
+    // Asymmetric: thicker on lee / down-wave flank
+    const dx0 = x - cx;
+    const leeSide = K.leeX * dx0 + K.leeZ * (z - (NECK_Z0 + NECK_Z1) * 0.5) * 0.15;
+    const leeAmp = 0.85 * midBar + 0.55 * shoreJoin;
+    const leeMul = 1 + leeAmp * Math.tanh(leeSide * 0.08);
+    hw *= leeMul;
+
+    const dx = dx0 / Math.max(2.5, hw);
     const dxAbs = Math.abs(dx);
 
-    // Soft mound (no mesa) — very soft falloff for "fuzzy haze" underwater look
-    const crestProfile = Math.pow(Math.max(0, 1 - Math.pow(dxAbs, 1.35)), 2.6);
-    const wash = smoothstep(1.85, 0.25, dxAbs);
+    // Soft mound — NEVER a mesa / flat slab (keep submerged mid fuzzy)
+    const crestProfile = Math.pow(Math.max(0, 1 - Math.pow(dxAbs, 1.45)), 2.85);
+    const wash = smoothstep(1.95, 0.2, dxAbs);
     const micro =
-      S[o + 12] * (0.7 + 0.5 * sandGate)
-      + 0.45 * noise2(x * 0.34, z * 0.30) * sandGate
-      + 0.25 * noise2(x * 0.85, z * 0.78) * midBar
-      + 0.18 * noise2(x * 1.9, z * 1.7) * shoreJoin;
+      S[o + 12] * (0.85 + 0.55 * sandGate)
+      + 0.55 * noise2(x * 0.32, z * 0.28) * sandGate
+      + 0.35 * noise2(x * 0.8, z * 0.72) * midBar
+      + 0.28 * noise2(x * 1.7, z * 1.55) * shoreJoin
+      + 0.4 * noise2(x * 0.09 + 4.2, z * 0.11) * sandGate;
 
-    // Meet rock toes — late stage climbs onto rocky shore (kill water gap)
     const nearS = smoothstep(1.55, 0.55, ds);
     const nearN = smoothstep(1.55, 0.55, dn);
     const toeMeet = Math.max(nearS, nearN) * shoreJoin;
     const endBoost = shoreJoin * (smoothstep(0.48, -0.15, tc) + smoothstep(0.52, 1.15, tc));
 
-    // Mid: soft submerged haze. Late: clearly dry beach crest joining both shores.
-    const subH = lerp(-2.7, -1.15, midBar) + 0.4 * noise2(x * 0.18, z * 0.16);
-    const dryLift = Math.max(0, K.crest) * 0.55 + 1.35 * shoreJoin;
-    const targetH = lerp(subH, Math.max(1.8, K.crest + dryLift), shoreJoin);
-    const ht = targetH * crestProfile
-      + wash * Math.max(-1.2, targetH * 0.32 - 0.5)
-      + micro
-      + toeMeet * (4.8 + Math.max(0, K.crest) * 1.3)
-      + endBoost * 3.0
-      + (1 - shoreJoin) * sandGate * Math.min(1, shoreFans) * nearS * 1.15
-      + (1 - shoreJoin) * sandGate * Math.min(1, shoreFans) * nearN * 1.15;
-
-    // Fuzzy lateral edge — extra noise so mid path is not a hard rectangle
-    const edgeWobble = 0.55 * noise2(x * 0.09 + z * 0.04, 5.5) + 0.35 * noise2(x * 0.22, z * 0.18);
-    const lateral = Math.pow(smoothstep(1.85 + 0.55 * edgeWobble, 0.18 + 0.2 * Math.abs(edgeWobble), dxAbs), 1.25);
+    // CRITICAL: mid-stage must NOT raise a near-surface plate (that reads as a cyan glass rectangle).
+    // Mid = mark MAT_SAND for water tan-haze only, keep height deep. Late = soft emergent dry crest.
+    const edgeWobble = 0.75 * noise2(x * 0.08 + z * 0.04, 5.5) + 0.5 * noise2(x * 0.2, z * 0.17) + 0.3 * noise2(x * 0.55, z * 0.5);
+    const lateral = Math.pow(smoothstep(2.05 + 0.7 * edgeWobble, 0.12 + 0.28 * Math.abs(edgeWobble), dxAbs), 1.35);
     const endFeather = smoothstep(-0.45, 0.05, tc) * smoothstep(1.45, 0.95, tc);
-    const presence = Math.max(
+    let presence = Math.max(
       sandGate * (0.1 + 0.9 * along) * endFeather,
       Math.max(toeMeet, endBoost) * Math.max(sandGate, shoreJoin * 0.55),
       sandGate * Math.min(1, shoreFans) * Math.max(nearS, nearN) * 0.9
     ) * lateral;
-    let ht2 = lerp(Math.min(seabed, -2.2), ht, presence);
-    // Late: force dry crest above water across the whole soft path
-    if (shoreJoin > 0.35) {
-      ht2 = Math.max(ht2, (1.35 + 1.1 * shoreJoin) * presence);
-    }
-    // When joining shores, never leave a water trough between sand and rock
-    if (toeMeet > 0.1) {
-      const pad = 1.15 + 2.0 * toeMeet;
-      ht2 = Math.max(ht2, pad * toeMeet);
-    }
-    if (ht2 > h + 0.01) {
-      h = ht2;
-      // Mark as sand even when deep so water shader can paint soft tan haze
-      m = ht2 > -3.4 ? MAT_SAND : MAT_SEABED;
+    // Lee: thicken presence on down-wave flank (students see sand respond when rotating waves)
+    presence *= 1 + leeAmp * 0.7 * Math.max(0, Math.tanh(leeSide * 0.1));
+
+    if (presence < 0.04) {
+      // skip
+    } else if (shoreJoin < 0.28) {
+      // MID: deep seabed + sand material only → water shader paints soft tan path (no shallow plate)
+      const deepSand = Math.min(seabed, -2.9) + 0.35 * micro * presence + leeAmp * 0.25 * Math.max(0, Math.tanh(leeSide * 0.1));
+      // Shore fans: slight rise near rock toes so accretion is readable, still well underwater
+      const fanLift = (nearS + nearN) * sandGate * Math.min(1, shoreFans) * 0.9 * presence;
+      const htMid = deepSand + fanLift;
+      if (htMid > h - 0.5) {
+        h = Math.min(h > -1.5 ? htMid : Math.max(h, htMid), -1.8); // hard cap: never shallower than -1.8 mid
+        m = MAT_SAND;
+      } else if (presence > 0.2) {
+        m = MAT_SAND; // tint only
+      }
+    } else {
+      // LATE: soft irregular dry / emerging crest joining both shores
+      const subH = lerp(-2.6, -0.9, shoreJoin) + 0.55 * noise2(x * 0.16, z * 0.14) + 0.3 * micro;
+      const dryLift = Math.max(0, K.crest) * 0.5 + 1.2 * shoreJoin;
+      const targetH = lerp(subH, Math.max(1.4, K.crest + dryLift * 0.8), Math.pow(shoreJoin, 1.35));
+      let ht = targetH * crestProfile
+        + wash * Math.max(-1.4, targetH * 0.25 - 0.6)
+        + micro * 0.8
+        + toeMeet * (4.2 + Math.max(0, K.crest))
+        + endBoost * 2.4
+        + leeAmp * 0.85 * Math.max(0, Math.tanh(leeSide * 0.1)) * crestProfile;
+      let ht2 = lerp(Math.min(seabed, -2.4), ht, presence);
+      if (shoreJoin > 0.5) {
+        const dryCap = (1.0 + 1.05 * shoreJoin) * presence * (0.7 + 0.3 * crestProfile + 0.18 * noise2(x * 0.4, z * 0.35));
+        ht2 = Math.max(ht2, dryCap);
+      }
+      if (toeMeet > 0.1) ht2 = Math.max(ht2, (1.0 + 1.8 * toeMeet) * toeMeet);
+      if (ht2 > h + 0.01) {
+        h = ht2;
+        m = ht2 > -3.2 ? MAT_SAND : MAT_SEABED;
+      }
     }
   }
 
-  // --- east bay beach (crescent on east of tombolo; anchored — no wave-dir jump) ---
+  // --- east bay beach: grows when west/SW waves shelter the east bay (lee of spit) ---
   if (t > -0.08 && t < 1.08 && K.wb > 3.5) {
     const tc = clamp(t);
-    const beachR = K.wb * (0.8 + 0.28 * Math.sin(Math.PI * tc));
+    // East bay sheltered when waves travel eastward (from W) or from SW/NW
+    const eastShelter = Math.max(0.25, 0.35 + 0.65 * Math.max(0, K.leeX));
+    const beachR = K.wb * (0.75 + 0.3 * Math.sin(Math.PI * tc)) * eastShelter;
     const shoreX = TOMB_X + 8 + 5.0 * Math.pow(Math.abs(2 * tc - 1), 1.6)
-      + 2.0 * noise2(z * 0.05, 6.2);
+      + 2.0 * noise2(z * 0.05, 6.2) + K.leeX * 3.5 * midBar;
     const dx = x - shoreX;
     const edgeN = 0.4 * noise2(x * 0.12, z * 0.1) + 0.22 * noise2(x * 0.3, z * 0.25);
-    const softR = beachR * (1 + 0.2 * edgeN);
+    const softR = beachR * (1 + 0.22 * edgeN);
     if (dx > -7 && dx < softR + 24) {
       const u = Math.max(0, dx) / Math.max(4, softR);
       const hb = Math.min(K.crest + 0.85, 2.35) - 4.0 * Math.pow(u, 1.2) + S[o + 9]
         + 0.28 * noise2(x * 0.5, z * 0.45);
       const edge = smoothstep(softR * 0.7, softR + 20, dx);
       const alongBeach = smoothstep(-0.02, 0.12, tc) * smoothstep(1.02, 0.88, tc);
-      const hh = lerp(hb, seabed, edge) * smoothstep(0.22, 0.52, s) * (0.55 + 0.45 * alongBeach + 0.35 * shoreJoin);
+      const hh = lerp(hb, seabed, edge) * smoothstep(0.22, 0.52, K.L.sand) * (0.55 + 0.45 * alongBeach + 0.35 * shoreJoin) * eastShelter;
       if (hh > h) { h = hh; m = hh > -2.4 ? MAT_SAND : MAT_SEABED; }
     }
   }
 
-  // --- west lagoon (soft shallow pocket west of path — only after mid bar; never a sand rectangle) ---
-  if (t > 0.18 && t < 0.82 && x < TOMB_X - 8 && midBar > 0.25) {
-    const bay = bump(x, TOMB_X - 22, 14) * bump(z, 14, 28) * (0.7 + 0.3 * noise2(x * 0.08, z * 0.08));
-    if (bay > 0.08) {
-      const hb = -1.4 - 1.6 * bay + 0.35 * midBar + S[o + 11];
-      if (hb > h && h < 1.2) { h = Math.max(h, hb); m = MAT_SEABED; }
+  // --- west lagoon: keep DEEP so it never becomes a bright cyan shallow plate beside the spit ---
+  if (t > 0.18 && t < 0.82 && x < TOMB_X - 10 && midBar > 0.35 && shoreJoin > 0.15) {
+    const bay = bump(x, TOMB_X - 24, 12) * bump(z, 14, 26) * (0.7 + 0.3 * noise2(x * 0.08, z * 0.08));
+    if (bay > 0.12) {
+      const hb = -3.2 - 1.2 * bay + 0.25 * shoreJoin + S[o + 11];
+      if (hb > h && h < 0.5) { h = Math.max(h, hb); m = MAT_SEABED; }
     }
   }
 
@@ -652,12 +742,12 @@ export function groundRaw(x: number, z: number, K: StageConsts): number {
 }
 
 /** Plan-view land/sand occupancy for the top-view minimap (0=water, 1=rock, 2=sand). */
-export function planCell(x: number, z: number, s: number, waveDir = 180): number {
+export function planCell(x: number, z: number, s: number, waveDir = 180, focus: FocusId = null): number {
   const core = islandCore(x, z);
   if (core > 0.45) return 1;
   const tip = Math.hypot((x - HX) / 14, (z - 118) / 28);
   if (tip < 1.05 && z > 85) return 1;
-  const K = stageConsts(s, waveDir);
+  const K = stageConsts(s, waveDir, focus);
   const t = (z - NECK_Z0) / (NECK_Z1 - NECK_Z0);
   const sandGate = smoothstep(-4.6, -1.2, K.crest);
   const midBar = smoothstep(-3.4, -0.6, K.crest);
@@ -667,7 +757,7 @@ export function planCell(x: number, z: number, s: number, waveDir = 180): number
     const shoreFans = Math.pow(smoothstep(0.55, -0.18, tc), 1.15) + Math.pow(smoothstep(0.45, 1.18, tc), 1.15);
     const along = lerp(0.22 + 0.78 * Math.min(1, shoreFans), 1.0, midBar * 0.85);
     const edgeN = 0.5 * noise2(x * 0.042 + 1.7, z * 0.038) + 0.28 * noise2(x * 0.11, z * 0.095);
-    const cx = TOMB_X + 4.2 * Math.sin(Math.PI * tc) + 2.4 * noise2(z * 0.034, 4.1);
+    const cx = TOMB_X + 4.2 * Math.sin(Math.PI * tc) + 2.4 * noise2(z * 0.034, 4.1) + K.leeX * 6 * midBar;
     const baseHw = 4.5 + 5.5 * sandGate + 3.5 * midBar + 5.0 * shoreJoin;
     const shoreFlare = (0.4 + 1.5 * shoreJoin) * Math.pow(Math.abs(2 * tc - 1), 0.9);
     const hw = baseHw * (0.38 + 0.78 * Math.pow(Math.abs(2 * tc - 1), 1.15)) * (1 + shoreFlare) * (1 + 0.4 * edgeN);

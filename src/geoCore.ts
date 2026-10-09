@@ -57,8 +57,8 @@ export class GeoCore {
     return c;
   }
 
-  build(s: number, rawAt: (x: number, z: number) => number, rawMatAt: (x: number, z: number) => number): HeadlandMesh {
-    const P = this.P = geoParams(s);
+  build(s: number, rawAt: (x: number, z: number) => number, rawMatAt: (x: number, z: number) => number, northHit = 1): HeadlandMesh {
+    const P = this.P = geoParams(s, northHit);
     const [nx, ny, nz] = GEO_DOMAIN.n;
     const [ox, oy, oz] = GEO_DOMAIN.origin;
     const [cx, cy, cz] = GEO_DOMAIN.cell;

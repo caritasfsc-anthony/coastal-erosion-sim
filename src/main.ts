@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { createWorld } from './scene';
 import { LANDFORMS, PROCESSES, SEQUENCE, byId, geoFrame, landformState, type LandformId } from './landforms';
 import { OVERVIEW, STORY } from './story';
-import { GX, HX, MANTOU, SEGMENTS, caveZ, geoHalfWidth, geoParams, geoX, groundRaw, headHalfWidth, northCliff, phase, planCell, southCliff, southCoast0, stackGeom, stageConsts, waveTravel } from './world';
+import { GX, HX, MANTOU, SEGMENTS, caveZ, geoHalfWidth, geoParams, geoX, groundRaw, headHalfWidth, northCliff, phase, planCell, southCliff, southCoast0, stackGeom, stageConsts, waveTravel, waveLessonTip, type FocusId } from './world';
 import { clamp } from './noise';
 import { activeStrike, strikeFor, type Strike } from './waveWork';
 import { wetUniforms } from './wet';
@@ -44,7 +44,7 @@ worker.onmessage = (e: MessageEvent) => {
 function requestBuild(s: number) {
   requested = s;
   inflight = true;
-  worker.postMessage({ s, wd: app.waveDir, id: ++reqId });
+  worker.postMessage({ s, wd: app.waveDir, focus: app.focus, id: ++reqId });
 }
 
 // ------------------------------------------------------------------ state
@@ -55,6 +55,8 @@ const app = {
   playing: false,
   mode: 'explore' as Mode,
   selected: null as LandformId | null,
+  /** Lesson focus: only this landform family animates; others freeze as backdrop. null = overview. */
+  focus: null as FocusId,
   visited: new Set<LandformId>(),
   tide: 0,
   energy: 1,
@@ -387,10 +389,12 @@ function selectLandform(id: LandformId, focus: boolean) {
   info.classList.add('open');
   closeProcess();
   if (focus) {
+    enterLesson(id);
     const present = landformState(id, app.stage).present;
     const target = present ? app.stage : lf.bestStage;
     if (!present) { animateStage(target); toast(`已跳到「${lf.zh}」出現的階段`); }
     focusLandform(id, target);
+    showWaveFeedback(waveLessonTip(id, app.waveDir), 2600);
   }
 }
 function renderInfoStatus(id: LandformId) {
@@ -444,6 +448,51 @@ function toast(msg: string, ms = 2600) {
   toastTimer = window.setTimeout(() => t.classList.remove('show'), ms);
 }
 
+let waveFbTimer = 0;
+function showWaveFeedback(msg: string, ms = 2200) {
+  const el = $('wave-feedback');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(waveFbTimer);
+  waveFbTimer = window.setTimeout(() => el.classList.remove('show'), ms);
+}
+
+function enterLesson(id: LandformId) {
+  app.focus = id;
+  document.body.classList.add('lesson-focus');
+  const bar = $('lesson-bar');
+  bar.classList.add('show');
+  bar.hidden = false;
+  const lf = byId(id);
+  $('lesson-name').textContent = lf.zh;
+  $('lesson-en').textContent = lf.en;
+  const tip =
+    id === 'tombolo' || id === 'beach' ? '轉浪向：沙會移去／加厚喺背風側'
+    : id === 'cliff' || id === 'platform' ? '轉浪向：向風南岸凹地／後退會加強'
+    : id === 'geo' ? '轉浪向：北向浪令海蝕隙間浪湧更猛'
+    : '轉浪向：向風一側浪花同侵蝕更明顯';
+  $('lesson-tip').textContent = `一次只睇「${lf.zh}」· ${tip}`;
+  $('wave-hint').textContent = waveLessonTip(id, app.waveDir);
+  // Rebuild so other landforms freeze at backdrop stage
+  requestBuild(app.stage);
+  dirtyMinimap = true;
+}
+
+function exitLesson(fly = true) {
+  app.focus = null;
+  document.body.classList.remove('lesson-focus');
+  const bar = $('lesson-bar');
+  bar.classList.remove('show');
+  bar.hidden = true;
+  requestBuild(app.stage);
+  dirtyMinimap = true;
+  if (fly) {
+    closeInfo();
+    flyOverview(1.6);
+    toast('總覽全海岸——點選地貌再入專題學習', 2800);
+  }
+}
+
 // ------------------------------------------------------------------ timeline & toolbar
 const slider = $('stage') as HTMLInputElement;
 slider.addEventListener('input', () => { stageTween = null; setPlaying(false); setStage(Number(slider.value) / 1000); });
@@ -485,7 +534,7 @@ $('btn-labels').addEventListener('click', () => {
   const on = document.body.classList.toggle('no-labels');
   $('btn-labels').classList.toggle('active', !on);
 });
-$('btn-home').addEventListener('click', () => flyOverview(1.8));
+$('btn-home').addEventListener('click', () => { exitLesson(false); flyOverview(1.8); });
 
 window.addEventListener('keydown', (e) => {
   if ((e.target as HTMLElement).tagName === 'INPUT' && e.key !== ' ') return;
@@ -509,7 +558,7 @@ function setMode(m: Mode) {
   closeInfo(); closeProcess();
   if (m === 'story') gotoStory(0);
   if (m === 'quiz') startQuiz();
-  if (m === 'explore') { flyOverview(1.6); toast('探索模式：拖曳旋轉、滾輪縮放、點擊光點'); }
+  if (m === 'explore') { exitLesson(false); flyOverview(1.6); toast('探索模式：點地貌入專題 · 或總覽全海岸'); }
 }
 document.querySelectorAll<HTMLButtonElement>('#modes button').forEach((b) =>
   b.addEventListener('click', () => setMode(b.dataset.mode as Mode)));
@@ -531,8 +580,14 @@ function gotoStory(i: number) {
   $('story-next').textContent = storyIdx === STORY.length - 1 ? '開始探索 ›' : '下一步 ›';
   animateStage(st.stage, 2.2);
   for (const h of hotspots) h.el.classList.toggle('selected', h.id === st.focus);
-  if (st.focus) { app.visited.add(st.focus); focusLandform(st.focus, st.stage, 2.4); }
-  else if (st.view) flyTo(new THREE.Vector3(...st.view.pos), new THREE.Vector3(...st.view.target), 2.4);
+  if (st.focus) {
+    enterLesson(st.focus);
+    app.visited.add(st.focus);
+    focusLandform(st.focus, st.stage, 2.4);
+  } else {
+    exitLesson(false);
+    if (st.view) flyTo(new THREE.Vector3(...st.view.pos), new THREE.Vector3(...st.view.target), 2.4);
+  }
 }
 function stopAuto() { clearInterval(autoTimer); autoTimer = 0; $('story-auto').classList.remove('active'); $('story-auto').textContent = '自動播放'; }
 $('story-prev').addEventListener('click', () => { stopAuto(); gotoStory(storyIdx - 1); });
@@ -554,6 +609,7 @@ let quiz = { order: [] as LandformId[], i: 0, score: 0, tries: 0, answered: fals
 function shuffle<T>(a: T[]): T[] { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function startQuiz() {
   quiz = { order: shuffle(LANDFORMS.map((l) => l.id)), i: 0, score: 0, tries: 0, answered: false };
+  exitLesson(false);
   flyOverview(1.8);
   showQuestion();
 }
@@ -625,17 +681,19 @@ function onHotspotClick(id: LandformId) {
 /** The geo teaching overlay shows whenever the learner is studying the geo — never in challenge mode. */
 function geoGuideWanted(now: number): boolean {
   if (app.mode === 'quiz' || app.built < 0.06) return false;
+  if (app.focus && app.focus !== 'geo') return false;
   if (app.mode === 'story') return STORY[storyIdx].focus === 'geo';
-  return app.selected === 'geo' || (watch !== null && watch.id === 'geo' && now < watch.until);
+  return app.focus === 'geo' || app.selected === 'geo' || (watch !== null && watch.id === 'geo' && now < watch.until);
 }
 /** South cliff／海蝕凹地／崩塌 teaching overlay. */
 function cliffGuideWanted(now: number): boolean {
   if (app.mode === 'quiz') return false;
+  if (app.focus && app.focus !== 'cliff' && app.focus !== 'platform') return false;
   if (app.mode === 'story') return STORY[storyIdx].focus === 'cliff' || STORY[storyIdx].focus === 'platform';
-  if (app.selected === 'cliff' || app.selected === 'platform') return true;
+  if (app.focus === 'cliff' || app.focus === 'platform' || app.selected === 'cliff' || app.selected === 'platform') return true;
   if (watch !== null && (watch.id === 'cliff' || watch.id === 'platform') && now < watch.until) return true;
-  // Auto-show during notch → collapse so students never miss the geometry
-  return app.built >= 0.08 && app.built <= 0.38;
+  // Overview only: auto-show during notch → collapse
+  return !app.focus && app.built >= 0.08 && app.built <= 0.38;
 }
 
 // ------------------------------------------------------------------ top-view minimap (右上角)
@@ -660,7 +718,7 @@ function drawMinimap() {
     const z = MM_WORLD.z1 - (py / (H - 1)) * (MM_WORLD.z1 - MM_WORLD.z0);
     for (let px = 0; px < W; px += step) {
       const x = MM_WORLD.x0 + (px / (W - 1)) * (MM_WORLD.x1 - MM_WORLD.x0);
-      const cell = planCell(x, z, s, wd);
+      const cell = planCell(x, z, s, wd, app.focus);
       let r = 8, g = 42, b = 68;
       if (cell === 1) { r = 196; g = 165; b = 116; }
       else if (cell === 2) { r = 232; g = 213; b = 163; }
@@ -794,16 +852,19 @@ function dirLabel(deg: number): [string, string] {
 function applyWaveDir(deg: number, rebuild = true) {
   deg = snapBearing(deg);
   app.waveDir = deg;
-  const [name, hint] = dirLabel(deg);
+  const [name] = dirLabel(deg);
+  const tip = waveLessonTip(app.focus, deg);
   $('wave-dir-lbl').textContent = name;
-  $('wave-hint').textContent = `浪從${name}方來 · ${hint}`;
+  $('wave-hint').textContent = tip;
   document.querySelectorAll<HTMLButtonElement>('#wave-pad .wd').forEach((b) => {
     b.classList.toggle('active', Number(b.dataset.deg) === deg);
   });
   water.setWaveAngle((-deg * Math.PI) / 180);
   if (rebuild) {
     updateSplashSources(app.built);
-    // Do NOT requestBuild — sand / stack stay anchored; only swell + spray rotate
+    // Rebuild terrain so lee-side sand / wave-facing notch update within ~1s
+    requestBuild(app.stage);
+    showWaveFeedback(tip, 2400);
   }
   checkMiniGoal();
   dirtyMinimap = true;
@@ -811,9 +872,9 @@ function applyWaveDir(deg: number, rebuild = true) {
 document.querySelectorAll<HTMLButtonElement>('#wave-pad .wd').forEach((b) => {
   b.addEventListener('click', () => {
     applyWaveDir(Number(b.dataset.deg), true);
-    toast(`海浪方向：${dirLabel(app.waveDir)[0]} —— ${dirLabel(app.waveDir)[1]}`, 1800);
   });
 });
+$('lesson-overview').addEventListener('click', () => exitLesson(true));
 
 // play tip + mini goal
 const tipEl = $('play-tip');
@@ -831,9 +892,8 @@ let mgDone = false;
 function checkMiniGoal() {
   if (mgDone || !mgEl.classList.contains('show')) return;
   // goal: wave from east (exact 8-way) and late stage
-  const east = app.waveDir === 90;
-  if (east && app.stage > 0.7) {
-    $('mg-text').textContent = '做得好！你已用東方浪向＋後期時間軸觀察海岸變化。';
+  if (app.focus === 'tombolo' && app.stage > 0.55) {
+    $('mg-text').textContent = '做得好！你已喺連島沙洲專題用浪向睇背風積沙。';
     $('mg-done').textContent = '太棒了 ✓';
   }
 }
@@ -852,7 +912,7 @@ function boot() {
   firstBuild = () => setTimeout(() => {
     $('loader').classList.add('done');
     flyOverview(4.2);
-    setTimeout(() => toast('初期兩島分開 · 拖時間軸睇連島沙洲 · 八方位轉浪向 · 右上角俯視圖', 4800), 1600);
+    setTimeout(() => toast('點選地貌入「專題學習」· 一次一個變化 · 轉浪向睇背風積沙', 4800), 1600);
   }, 250);
   requestBuild(0);
   requestAnimationFrame(frame);
@@ -866,4 +926,4 @@ function snap() {
   if (stageTween) { setStage(stageTween.to); stageTween = null; }
   if (camTween) { camera.position.copy(camTween.p1); controls.target.copy(camTween.t1); camTween = null; controls.update(); }
 }
-(window as unknown as Record<string, unknown>).__sim = { snap, focusLandform, V3: THREE.Vector3, world: W, setView, app, setStage, animateStage, selectLandform, flyTo, flyOverview, flyTopDown, setMode, camera, controls, caveZ, splash, setPlaying, applyWaveDir, drawMinimap };
+(window as unknown as Record<string, unknown>).__sim = { snap, focusLandform, V3: THREE.Vector3, world: W, setView, app, setStage, animateStage, selectLandform, enterLesson, exitLesson, flyTo, flyOverview, flyTopDown, setMode, camera, controls, caveZ, splash, setPlaying, applyWaveDir, drawMinimap };

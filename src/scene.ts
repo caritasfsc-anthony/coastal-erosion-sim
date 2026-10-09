@@ -85,7 +85,7 @@ export function createWorld(canvas: HTMLCanvasElement) {
   const composer = new EffectComposer(renderer, rt);
   composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(size, 0.28, 0.5, 0.88);
+  const bloom = new UnrealBloomPass(size, 0.18, 0.55, 0.92);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 

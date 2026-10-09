@@ -96,6 +96,9 @@ void main(){
   float depth = vWorld.y - landH(vWorld.xz);
   // Dry land (sand/rock above water): hide water so foam never "washes through" the tombolo
   if (depth < -0.12) discard;
+  float sandM0 = landSand(vWorld.xz);
+  // Mid sand path is intentionally deep; boost perceived depth so no cyan glass plate forms
+  depth = mix(depth, max(depth, 2.2), sandM0 * 0.85);
   vec2 q = vWorld.xz;
   // micro detail normal
   float e = 0.6;
@@ -113,19 +116,20 @@ void main(){
   vec3 sky = mix(uSkyHorizon, uSkyTop, pow(clamp(R.y,0.0,1.0), 0.6));
   sky += uSunColor*pow(max(dot(R,uSunDir),0.0), 12.0)*0.35;
   float dt = smoothstep(0.0, 10.0, depth);
-  vec3 body = mix(uShallow, uDeep, dt);
-  // Soft fuzzy underwater sand PATH — warm tan haze wins over cyan shallows; frayed edges
-  float sandM = landSand(vWorld.xz);
-  float sandVis = sandM * smoothstep(4.5, 0.4, depth);
-  float sandNoise = 0.3 + 0.45*fbm(q*0.06 + vec2(3.1, 7.7)) + 0.3*fbm(q*0.2 + vec2(9.2, 1.4));
-  sandVis = pow(clamp(sandVis * sandNoise, 0.0, 1.0), 1.05);
-  vec3 sandTint = vec3(0.86, 0.72, 0.48); // warm tan
-  vec3 sandDeep = vec3(0.55, 0.50, 0.34);
-  vec3 sandCol = mix(sandDeep, sandTint, clamp(1.15 - depth*0.35, 0.0, 1.0));
-  // Prefer tan over default cyan shallow so mid tombolo looks sandy, not a teal slab
-  body = mix(body, sandCol, clamp(sandVis * 0.92, 0.0, 1.0));
-  body += uShallow*0.28*smoothstep(0.2, 1.0, vCrest)*max(dot(uSunDir, -V)*0.5+0.5, 0.0)*(1.0 - 0.55*sandVis);
-  vec3 col = mix(body, sky, fres*0.8*(1.0 - 0.4*sandVis));
+  // Strongly mute teal shallows (cyan plate killer)
+  vec3 shallowSoft = mix(uDeep, uShallow, 0.22);
+  vec3 body = mix(shallowSoft, uDeep, dt);
+  float sandM = sandM0;
+  float sandVis = sandM * smoothstep(6.0, 0.8, depth);
+  float sandNoise = 0.25 + 0.5*fbm(q*0.05 + vec2(3.1, 7.7)) + 0.35*fbm(q*0.18 + vec2(9.2, 1.4)) + 0.2*fbm(q*0.55);
+  sandVis = pow(clamp(sandVis * sandNoise, 0.0, 1.0), 0.95);
+  vec3 sandTint = vec3(0.88, 0.74, 0.50);
+  vec3 sandDeep = vec3(0.52, 0.48, 0.33);
+  vec3 sandCol = mix(sandDeep, sandTint, clamp(1.2 - depth*0.4, 0.0, 1.0));
+  // Tan haze fully overrides shallow teal wherever sand mask is present
+  body = mix(body, sandCol, clamp(sandVis * 0.98, 0.0, 1.0));
+  body += shallowSoft*0.12*smoothstep(0.2, 1.0, vCrest)*max(dot(uSunDir, -V)*0.5+0.5, 0.0)*(1.0 - 0.85*sandVis);
+  vec3 col = mix(body, sky, fres*0.75*(1.0 - 0.55*sandVis));
   vec3 H = normalize(uSunDir + V);
   float spec = pow(max(dot(N,H),0.0), 600.0)*5.0 + pow(max(dot(N,H),0.0), 60.0)*0.25;
   col += uSunColor*spec;
@@ -169,7 +173,7 @@ export class Water {
       uHeight: { value: o.heightTex },
       uHeightRect: { value: new THREE.Vector3(INNER.min, INNER.min, INNER.size) },
       uSunDir: { value: o.sunDir }, uSunColor: { value: o.sunColor },
-      uDeep: { value: new THREE.Color(0x083648) }, uShallow: { value: new THREE.Color(0x35c0b4) },
+      uDeep: { value: new THREE.Color(0x083648) }, uShallow: { value: new THREE.Color(0x1a6a78) },
       uFoam: { value: new THREE.Color(0xf7faf8) },
       uSkyTop: { value: o.skyTop }, uSkyHorizon: { value: o.skyHorizon },
       uFogColor: { value: o.fogColor }, uFogDensity: { value: o.fogDensity },

@@ -1,5 +1,5 @@
 // Pure terrain computation (runs inside the build worker).
-import { GEO_SUNK, HX, INNER, MAT_LAND, MAT_PLAT, MAT_SAND, PAL_JOINT, STATIC_FIELDS, geoX, jointTrace, stageConsts, staticSample, terrainSample, type Sample } from './world';
+import { GEO_SUNK, HX, INNER, MAT_LAND, MAT_PLAT, MAT_SAND, PAL_JOINT, STATIC_FIELDS, geoX, jointTrace, stageConsts, staticSample, terrainSample, type FocusId, type Sample } from './world';
 import { PAL, rockColor, type RGB } from './palette';
 import { lerp, noise2, smoothstep } from './noise';
 
@@ -92,9 +92,9 @@ class Grid {
     this.prevM = new Uint8Array(N).fill(255);
   }
 
-  build(s: number, waveDir = 180): GridResult {
+  build(s: number, waveDir = 180, focus: FocusId = null): GridResult {
     const { n, step, spec, heights: hs, mats: ms } = this;
-    const K = stageConsts(s, waveDir);
+    const K = stageConsts(s, waveDir, focus);
     const smp: Sample = { h: 0, m: 0 };
     const lo = INNER.min + 1, hi = INNER.min + INNER.size - 1;
     for (let j = 0; j < n; j++) {
@@ -136,8 +136,8 @@ export class TerrainCore {
   readonly inner = new Grid(INNER_GRID);
   readonly outer = new Grid(OUTER_GRID);
 
-  buildGrids(s: number, waveDir = 180) {
-    return { inner: this.inner.build(s, waveDir), outer: this.outer.build(s, waveDir) };
+  buildGrids(s: number, waveDir = 180, focus: FocusId = null) {
+    return { inner: this.inner.build(s, waveDir, focus), outer: this.outer.build(s, waveDir, focus) };
   }
 
   /** Height of the original (pre geo cut-out) inner heightfield surface, interpolated exactly like its triangles. */
@@ -169,15 +169,15 @@ export class TerrainCore {
       } else if (h < 3) {
         if (x > HX - 20 && x < HX + 20 && z > 85 && z < 152 && solidAt(x, z)) h = 4;
       }
-      // Only bias EMERGENT dry sand (late tombolo) — never lift mid submerged bar or it becomes a hard rectangle
+      // Never lift mid submerged sand into a hard rectangle / floating slab
       const isSand = this.inner.mats[v] === MAT_SAND;
-      if (isSand && h > 0.2) h = Math.max(h, 0.45 + h * 0.2);
+      if (isSand && h > 0.55) h = Math.max(h, 0.35 + h * 0.15);
       const e = Math.max(0, Math.min(255, Math.round(((h + 28) / 72) * 255)));
-      // G = soft sand mask for water shader (fuzzy underwater tan path)
+      // G = soft sand mask — only clearly submerged sand; fray via height so no hard box
       let sandAmt = 0;
       if (isSand) {
-        // mid submerged bar must tint strongly; dry crest fades so terrain mesh shows
-        sandAmt = Math.round(255 * smoothstep(-3.2, -0.8, h) * smoothstep(1.2, 0.05, h));
+        // Deep mid path must still tint strongly; fade only when truly dry
+        sandAmt = Math.round(255 * smoothstep(-4.2, -2.0, h) * smoothstep(0.6, -0.4, h));
       }
       tex[v * 4] = e; tex[v * 4 + 1] = sandAmt; tex[v * 4 + 2] = e; tex[v * 4 + 3] = 255;
     }
