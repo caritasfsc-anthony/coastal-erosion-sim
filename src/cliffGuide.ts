@@ -1,4 +1,4 @@
-// Teaching overlay for 南氹 海崖：海蝕凹地 → 崩塌 → 海崖／浪蝕平台（對照香港地理教科書示意圖）.
+// Teaching overlay for south sea cliff：海蝕凹地 → 崩塌 → 海崖／浪蝕平台.
 import * as THREE from 'three';
 import { groundRaw, southCliff, stageConsts } from './world';
 
@@ -49,7 +49,7 @@ function ribbon(pts: THREE.Vector3[], width: number): THREE.BufferGeometry {
 
 interface Anno { el: HTMLDivElement; pos: THREE.Vector3; on: boolean; }
 
-/** Stage thresholds for 南氹 cliff teaching beats (exported for collapse toast / story). */
+/** Stage thresholds for south-cliff teaching beats (exported for collapse toast / story). */
 export const CLIFF_NOTCH_PEAK = 0.18;
 export const CLIFF_COLLAPSE_S = 0.24;
 
@@ -99,16 +99,16 @@ export class CliffGuide {
     else if (s < CLIFF_COLLAPSE_S + 0.06) this.phase = 'collapse';
     else this.phase = 'cliff';
 
-    // Notch ribbon along waterline undercut (x across 南氹)
+    // Notch ribbon along waterline undercut (x across south cliff)
     const notchPts: THREE.Vector3[] = [];
     for (let x = -8; x <= 48; x += 2.2) {
       const cl = southCliff(x, s);
       const z = cl + 0.35; // just inland of cliff line = notch roof band
-      const y = Math.max(0.55, Math.min(2.2, groundRaw(x, z, K) * 0.15 + 1.05));
+      const y = Math.max(0.7, Math.min(2.6, groundRaw(x, z, K) * 0.12 + 1.25));
       notchPts.push(new THREE.Vector3(x, y + lift, z));
     }
     this.notchLine.geometry.dispose();
-    this.notchLine.geometry = ribbon(notchPts, this.phase === 'notch' || this.phase === 'collapse' ? 0.7 : 0.4);
+    this.notchLine.geometry = ribbon(notchPts, this.phase === 'notch' || this.phase === 'collapse' ? 1.15 : 0.55);
 
     // Platform apron outline (seaward of cliff)
     const platPts: THREE.Vector3[] = [];

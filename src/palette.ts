@@ -4,7 +4,7 @@ import { lerp, noise2, smoothstep } from './noise';
 
 const c = (hex: number) => new Color(hex);
 export const PAL = {
-  // Cheung Chau volcanic / granite-like: warm ochre, cool grey facets, pale strata
+  // Volcanic / granite-like: warm ochre, cool grey facets, pale strata
   rockA: c(0x9a8570), rockB: c(0x5e5348), rockC: c(0xc4b39a), rockWet: c(0x2e2924),
   rockDark: c(0x3a342e), rockLite: c(0xd2c4ab),
   algae: c(0x3a4a32), grass: c(0x56703c), grassDry: c(0x9a8f5c), shrub: c(0x31492a),

@@ -1,4 +1,4 @@
-// Rock-fall debris at the foot of the 南氹 south cliff.
+// Rock-fall debris at the foot of the southern teaching cliff.
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GX, southCliff } from './world';
@@ -31,15 +31,15 @@ export class CliffDebris {
     const mat = new THREE.MeshStandardMaterial({ color: 0x7a6a58, roughness: 0.9, metalness: 0, envMapIntensity: 0.8 });
     applyWetSheen(mat);
     let id = 0;
-    // Nam Tam south cliff toe debris
+    // South cliff toe debris (崩塌岩屑)
     for (let x = -30; x <= 70; x += 1.8) {
       if (Math.abs(x - GX) < 6) { id++; continue; }
       const h = hash1(id * 13 + 7);
       if (h < 0.38) { id++; continue; }
-      const born = 0.18 + 0.22 * hash1(id * 29 + 3); // appear around 崩塌 beat
+      const born = 0.20 + 0.08 * hash1(id * 29 + 3); // appear at 崩塌 beat
       this.rocks.push({
         x: x + (hash1(id * 5 + 1) - 0.5) * 1.6, born, off: -(0.8 + 2.6 * hash1(id * 17 + 9)),
-        size: 0.45 + 1.05 * hash1(id * 31 + 4) ** 1.5,
+        size: 0.55 + 1.35 * hash1(id * 31 + 4) ** 1.4,
         rot: new THREE.Euler(hash1(id * 3) * 6.28, hash1(id * 7) * 6.28, hash1(id * 11) * 6.28), sy: 0.6 + 0.3 * hash1(id * 19),
       });
       id++;
@@ -52,7 +52,8 @@ export class CliffDebris {
   update(s: number) {
     this.rocks.forEach((r, i) => {
       const t0 = Math.max(0, r.born);
-      const vis = smoothstep(r.born, r.born + 0.015, s) * (1 - smoothstep(t0 + 0.18, t0 + 0.45, s));
+      // Stay visible well after collapse so students see the debris field
+      const vis = smoothstep(r.born, r.born + 0.02, s) * (1 - smoothstep(t0 + 0.55, t0 + 1.05, s));
       const k = r.size * vis;
       const z = southCliff(r.x, Math.min(s, t0)) + r.off;
       this.q.setFromEuler(r.rot);

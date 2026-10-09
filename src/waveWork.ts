@@ -62,7 +62,7 @@ export function strikeFor(id: LandformId, s: number, sTarget = s): Strike {
       if (id === 'platform' || s >= 0.45) {
         return {
           pos: new THREE.Vector3(x, 0.8, cl - 0.6), n: new THREE.Vector3(0, 0, -1), face: 20,
-          title: '南氹：海崖後退 → 浪蝕平台擴闊',
+          title: '南岸：海崖後退 → 浪蝕平台擴闊',
           text: '浪只能蝕到潮間帶高度；崩塌岩屑被沖走後留下平緩岩台。平台愈闊，浪到崖腳前消耗的能量愈多。',
         };
       }
@@ -106,9 +106,9 @@ export function strikeFor(id: LandformId, s: number, sTarget = s): Strike {
       const pos = landformState(id, s).pos.clone(); pos.y = 0.8;
       return {
         pos, n: new THREE.Vector3(0, 0, 1), face: 1, deposit: true,
-        title: id === 'beach' ? '東灣：低能量海灣沉積' : '兩島之間：連島沙洲生長',
+        title: id === 'beach' ? '灣頭：低能量海灣沉積' : '兩島之間：連島沙洲生長',
         text: id === 'beach'
-          ? '浪在岩岬折射、能量集中於岬角；東灣浪弱，建設性海浪把沙粒推上灣頭，形成新月形海灘。轉浪向可改變灘面偏向。'
+          ? '浪在岩岬折射、能量集中於岬角；海灣浪弱，建設性海浪把沙粒推上灣頭，形成新月形海灘。'
           : '南北兩島之間成為掩蔽區；泥沙先堆積成水下沙洲，再露出水面把兩島連接。背浪一側沉積更明顯。',
       };
     }

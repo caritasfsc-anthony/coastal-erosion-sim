@@ -5,7 +5,7 @@ import { surfaceNets } from './surfaceNets';
 import { rockColor, type RGB } from './palette';
 
 export const DOMAIN = {
-  // NE tip of Cheung Chau teaching silhouette (海蝕洞→拱→柱) — extend +Z so offshore stacks fit
+  // NE tip of teaching silhouette (海蝕洞→拱→柱) — extend +Z so offshore stacks fit
   origin: [HX - 22, -3.2, 82] as [number, number, number],
   cell: [0.7, 0.62, 0.85] as [number, number, number],
   n: [66, 52, 120] as [number, number, number],
@@ -42,8 +42,8 @@ function segSDF(k: number, S: SegState, x: number, y: number, z: number, w: numb
     d = Math.max(d, -cut);
     if (cv.stack > 0) {
       let dc = Math.max(Math.hypot(x - HX, z - st.zs) - st.r, y - top);
-      // waves wrap round the stack and cut a notch into its base until it topples
-      dc += 1.5 * smoothstep(0.64, 0.9, p) * (1 - 0.6 * cv.stump) * Math.exp(-((y - 0.8) ** 2) / (y > 0.8 ? 1.5 : 0.5));
+      // mild waterline wear — keep the stack planted in the sea (no floating pillar look)
+      dc += 0.55 * smoothstep(0.7, 0.95, p) * (1 - 0.7 * cv.stump) * Math.exp(-((y - 0.55) ** 2) / (y > 0.55 ? 1.1 : 0.4));
       d = d + (dc - d) * cv.stack;
     }
     // fallen roof blocks: dumped instantly by the collapse, then slowly ground down (attrition)

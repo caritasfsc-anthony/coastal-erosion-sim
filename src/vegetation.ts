@@ -1,4 +1,4 @@
-// Coastal shrubs on Cheung Chau hilltops (north + south masses).
+// Coastal shrubs on teaching hilltops (north + south masses).
 import * as THREE from 'three';
 import { NORTH, SOUTH, STATIC_FIELDS, stageConsts, staticSample, terrainSample, islandCore } from './world';
 import { hash1 } from './noise';

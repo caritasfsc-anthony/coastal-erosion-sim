@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#061520" />
-    <title>長洲海岸侵蝕實驗室｜Cheung Chau Coastal Lab</title>
+    <title>海岸侵蝕實驗室｜Coastal Erosion Lab</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path d='M4 44c8-6 14-6 20 0s14 6 20 0 12-6 16-2v18H4z' fill='%235eead4'/><path d='M14 40V20l10-8 8 10v18z' fill='%23f5d0a0'/></svg>" />
   </head>
   <body>
@@ -29,8 +29,8 @@
           <svg viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="bg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5eead4"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><path d="M3 27c5-4 9-4 13 0s9 4 13 0 7-3 8-1v11H3z" fill="url(#bg1)"/><path d="M10 25V12l7-6 6 7v12z" fill="#f5d0a0" opacity=".95"/><path d="M26 25v-6l3-3 3 3v6z" fill="#f5d0a0" opacity=".7"/></svg>
         </div>
         <div>
-          <h1>長洲海岸侵蝕實驗室</h1>
-          <p>Cheung Chau · 互動 3D 地理教學模擬</p>
+          <h1>海岸侵蝕實驗室</h1>
+          <p>互動 3D 地理教學模擬 · 教學樣本</p>
         </div>
       </header>
 
@@ -54,7 +54,7 @@
           <span class="count" id="found-count">0 / 9 已探索</span>
         </div>
         <ul id="lf-list"></ul>
-        <p class="side-hint">長洲教學模型：初期兩島分開，後期連成沙洲。轉浪向、拖時間軸、點光點探索。</p>
+        <p class="side-hint">教學樣本：初期兩島分開，後期連成沙洲。轉浪向、拖時間軸、點光點探索。</p>
       </aside>
 
       <section id="info" class="glass panel" aria-live="polite">
@@ -134,7 +134,7 @@
             <button type="button" class="wd active" data-deg="180" title="南">南</button>
             <button type="button" class="wd" data-deg="135" title="東南">東南</button>
           </div>
-          <span class="wave-hint" id="wave-hint">浪從南方來 · 南氹受蝕較強</span>
+          <span class="wave-hint" id="wave-hint">浪從南方來 · 南岸海崖受蝕較強</span>
         </div>
         <div class="tl-energy">
           <label for="energy">波浪能量</label>
@@ -152,12 +152,12 @@
 
       <div id="play-tip" class="glass" aria-live="polite">
         <b>試吓轉浪向</b>
-        <span>撳八個方位掣，即時睇邊岸浪花多、沙洲偏向邊邊</span>
+        <span>撳八個方位掣，即時睇邊岸浪花較多——沙洲位置保持穩定</span>
         <button type="button" id="tip-dismiss" class="ghost">知道了</button>
       </div>
       <div id="mini-goal" class="glass">
         <div class="mg-top"><span class="info-tag">小任務</span><button type="button" id="mg-close" class="close" aria-label="關閉">×</button></div>
-        <p id="mg-text">把浪向轉到「東」，再把時間軸拖到後期——睇連島沙洲係咪偏向西側？</p>
+        <p id="mg-text">把浪向轉到「東」，再把時間軸拖到後期——觀察東岸受浪同連島沙洲成形。</p>
         <button type="button" id="mg-done" class="primary">完成 ✓</button>
       </div>
 
@@ -165,7 +165,7 @@
       <div id="loader">
         <div class="loader-inner">
           <div class="loader-ring"></div>
-          <h1>長洲海岸侵蝕實驗室</h1>
+          <h1>海岸侵蝕實驗室</h1>
           <p id="loader-text">正在分開南北兩島⋯</p>
         </div>
       </div>

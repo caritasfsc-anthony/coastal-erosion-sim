@@ -1,4 +1,4 @@
-// Tasteful low building blocks on the Cheung Chau tombolo (市鎮示意).
+// Tasteful low building blocks on the teaching tombolo (市鎮示意).
 import * as THREE from 'three';
 import { NECK_Z0, NECK_Z1, TOMB_X, tomboloCrest } from './world';
 import { hash1 } from './noise';

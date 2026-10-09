@@ -1,6 +1,6 @@
-// Pure world model: Cheung Chau (長洲) teaching silhouette.
+// Pure world model: generic dumbbell-island teaching silhouette.
 // Every landform is a function of the erosion stage s ∈ [0, 1].
-// +X = east, +Z = north. Simplified pedagogical model inspired by 3d.map.gov.hk — not survey data.
+// +X = east, +Z = north. Simplified pedagogical sample — not a real place / survey data.
 import { bump, clamp, fbm2, lerp, noise2, smoothstep } from './noise';
 
 export const H = 32; // typical hill / cliff height scale
@@ -60,22 +60,21 @@ export function caveParams(p: number, w: number) {
 export function stackGeom(k: number, p: number) {
   const seg = SEGMENTS[k];
   const zc = caveZ(k);
-  // After arch collapse, park the stack well beyond the segment tip so the water gap reads clearly
-  const detach = smoothstep(0.62, 0.92, p);
-  const gapClear = 12 + 18 * detach; // wide open channel between remaining tip & stack
+  // Fixed offshore park once the arch collapses — never slides while scrubbing the timeline.
   const r = lerp(Math.min(headHalfWidth(zc + 4), 5.0), 3.4, smoothstep(0.65, 0.97, p));
-  const zs = seg.b + 10 + 22 * detach; // farther offshore than the old tip
+  const gapClear = 16; // readable water channel between remaining tip & stack
+  const zs = seg.b + 26; // anchored world Z (stable hotspot / mesh)
   const z0 = zs - r - 1.0;
   const zEnd = zs + r + 2.5;
-  const cutSea = Math.min(z0 - gapClear, seg.b - 2); // carve through former tip into the gap
+  const cutSea = Math.min(z0 - gapClear, seg.b - 2);
   return { zs, r, z0, zEnd, cutSea, gapClear };
 }
 
-// ---------- Cheung Chau silhouette (dumbbell) ----------
-// Plan rings match the real island’s elongated N–S dumbbell (not soft cylinders).
-// Coordinates: +X east, +Z north. Rings are closed CCW. Early stage = two separate islands.
+// ---------- Dumbbell teaching silhouette ----------
+// Elongated N–S dumbbell (not soft cylinders). Early stage = two separate islands.
+// Coordinates: +X east, +Z north. Rings are closed CCW.
 
-/** South hillmass (larger) — 南氹 / south. Tall granite cliffs. */
+/** South hillmass (larger) — tall teaching cliffs on the south shore. */
 export const SOUTH = { x: 4, z: -92, rx: 58, rz: 78, peak: 44 };
 /** North hillmass (smaller) — rocky north tip. */
 export const NORTH = { x: -4, z: 102, rx: 42, rz: 52, peak: 28 };
@@ -84,7 +83,7 @@ export const NECK_Z0 = -18, NECK_Z1 = 48;
 
 /**
  * Irregular rocky outline of the southern mass (plan view).
- * Elongated N–S with coves & headlands — inspired by 3d.map.gov.hk Cheung Chau.
+ * Elongated N–S with coves & headlands — generic teaching outline.
  */
 export const SOUTH_RING: [number, number][] = [
   // neck-facing north — narrow waist (tombolo attaches here)
@@ -193,7 +192,7 @@ export function northCliff(x: number, s: number): number {
   return northCoast0(x) - retreat(s) * (0.55 + 0.45 * smoothstep(-50, 40, x));
 }
 
-/** South-facing cliff line at 南氹 (sea to the south / −Z). Retreat moves inland (+Z). */
+/** South-facing cliff line (sea to the south / −Z). Retreat moves inland (+Z). */
 export function southCoast0(x: number): number {
   const base = coastAtX(SOUTH_RING, x, false);
   if (base === null) {
@@ -201,7 +200,7 @@ export function southCoast0(x: number): number {
     return SOUTH.z - SOUTH.rz * 0.55 * Math.sqrt(Math.max(0, 1 - u * u));
   }
   let z = base;
-  // Nam Tam: irregular granite headlands / coves
+  // Irregular granite headlands / coves
   z += 2.6 * noise2(x * 0.045, 4.4) + 1.7 * noise2(x * 0.12, 1.8);
   z += 1.5 * Math.abs(noise2(x * 0.22, 7.2)) - 3.2 * bump(x, 22, 9) - 2.2 * bump(x, -18, 7) - 1.8 * bump(x, 48, 6);
   return z;
@@ -210,7 +209,7 @@ export function southCliff(x: number, s: number): number {
   return southCoast0(x) + retreat(s) * (0.7 + 0.3 * bump(x, 20, 50));
 }
 
-/** Legacy helpers used by debris / splash on the southern teaching cliff (南氹). */
+/** Legacy helpers used by debris / splash on the southern teaching cliff. */
 export function coast0(x: number): number { return southCoast0(x); }
 export function cliffLine(x: number, s: number): number { return southCliff(x, s); }
 export const bayW = (_x: number): number => 0;
@@ -258,7 +257,7 @@ export function jointTrace(x: number, z: number, gx: number): number {
 export const tomboloCrest = (s: number): number =>
   -4.6 + 2.4 * smoothstep(0.08, 0.38, s) + 4.6 * smoothstep(0.38, 0.88, s);
 
-/** 饅頭石 landmark (SE rocky shore). */
+/** Rounded boulder landmark on the SE rocky shore (teaching prop). */
 export const MANTOU = { x: 58, z: -78, r: 4.2 };
 
 export interface Sample { h: number; m: number; raw?: number; rawM?: number; }
@@ -277,10 +276,10 @@ export function staticSample(x: number, z: number, out: Float32Array, o: number)
   const sIn = Math.max(0, -polySDF(x, z, SOUTH_RING));
   const nIn = Math.max(0, -polySDF(x, z, NORTH_RING));
   // Dome from rim (higher exponent = rounded hills, not flat cylinder lids).
-  // Extra lift near the southern outer coast so 南氹 cliff can still soar.
+  // Extra lift near the southern outer coast so the teaching cliff can still soar.
   const sNearNeck = smoothstep(-42, -16, z) * smoothstep(8, -10, z);
   const nNearNeck = smoothstep(38, 56, z) * smoothstep(72, 46, z);
-  const sSouthRim = smoothstep(-40, -120, z); // toward Nam Tam tip
+  const sSouthRim = smoothstep(-40, -120, z); // toward south tip
   const sPlateau = Math.pow(smoothstep(2.2 + 5 * sNearNeck, 26 - 8 * sNearNeck, sIn), 0.62 + 0.2 * sNearNeck);
   const nPlateau = Math.pow(smoothstep(2.0 + 4 * nNearNeck, 22 - 6 * nNearNeck, nIn), 0.62 + 0.2 * nNearNeck);
   const sCliffLift = (0.55 + 0.45 * sSouthRim) * Math.pow(smoothstep(0.8, 7, sIn), 0.35) * (1 - 0.7 * sNearNeck);
@@ -339,7 +338,7 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
   let h = seabed;
   let m = MAT_SEABED;
 
-  // --- south hillmass (南氹): textbook — 原本坡面 → 海蝕凹地 → 崩塌 → 陡峭海崖 + 浪蝕平台變闊 ---
+  // --- south hillmass: textbook — 原本坡面 → 海蝕凹地 → 崩塌 → 陡峭海崖 + 浪蝕平台 ---
   if (ds < 1.28) {
     const inland = z - sCl; // >0 = inland of south cliff
     // Distinct teaching beats: notch deepens first, then collapse (≈0.24) forms the cliff
@@ -360,26 +359,39 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
     } else {
       // Clear elevated island-core seabed so the slope / notch / cliff can write
       if (h > -0.5) h = -2.0;
-      // (1) Original gentle slope (原本的坡面) — dominant early, fades after collapse
+
+      // (1) Original gentle slope — dominant early, fades after collapse
       const slopeLen = 34 - 20 * collapsePhase;
       const slopeExp = lerp(1.35, 0.35, collapsePhase);
       const origSlope = S[o + 5] * Math.pow(smoothstep(0.0, slopeLen, inland), slopeExp) * lerp(0.92, 0.12, collapsePhase);
 
-      // (2) 海蝕凹地 (wave-cut notch) — deep undercut shelf at waterline BEFORE collapse
-      // Heightfield cannot true-overhang; we carve a clear low roof band so students see the indent.
-      const notchW = 2.2 + 3.6 * notchPhase; // deepens inland as notch grows
-      const notchRoof = 0.75 + 0.55 * notchPhase + 0.08 * S[o + 7];
-      const notchBand = smoothstep(0.0, 0.45, inland) * smoothstep(notchW + 1.1, 0.35, inland)
-        * (1 - collapsePhase * 0.85); // notch reads strongest mid-timeline, then remnant only
+      // (2) 海蝕凹地 — deep waterline undercut BEFORE collapse (must read from the sea)
+      // Heightfield cannot true-overhang; carve a long low roof + keep a high bulk just inland.
+      const notchW = 2.6 + 5.2 * notchPhase; // deepens inland as notch grows
+      const notchRoof = 0.45 + 0.35 * notchPhase + 0.06 * S[o + 7];
+      const notchBand = smoothstep(0.0, 0.35, inland) * smoothstep(notchW + 0.8, 0.25, inland)
+        * (1 - collapsePhase * 0.92); // strongest mid-timeline
 
-      // Overhang bulk just inland of the notch (the rock that will collapse)
-      const overhang = S[o + 5] * 0.55 * notchPhase * (1 - collapsePhase)
-        * smoothstep(notchW * 0.55, notchW + 1.8, inland)
-        * smoothstep(notchW + 8, notchW + 2.5, inland);
+      // Overhang bulk just inland of the notch (the rock that will collapse) — tall & obvious
+      const overhang = S[o + 5] * (0.72 + 0.2 * notchPhase) * notchPhase * (1 - collapsePhase)
+        * smoothstep(notchW * 0.35, notchW + 0.8, inland)
+        * smoothstep(notchW + 14, notchW + 3.5, inland);
+
+      // Force a readable "shelf indent": near the face, clamp down hard to notchRoof
+      // while overhang keeps height a few metres inland — looks like undercut from seaward.
+      let preCliff = Math.max(origSlope, overhang);
+      if (notchBand > 0.02) {
+        preCliff = lerp(preCliff, Math.min(preCliff, notchRoof), Math.min(1, notchBand * 1.35));
+      }
+      // Extra: keep a raised lip / roof just above the notch cavity so the indent casts a shadow
+      const roofLip = S[o + 5] * 0.38 * notchPhase * (1 - collapsePhase)
+        * smoothstep(notchW * 0.7, notchW + 0.2, inland)
+        * smoothstep(notchW + 5.5, notchW + 1.6, inland);
+      preCliff = Math.max(preCliff, roofLip);
 
       // (3) Steep cliff after roof collapse
-      const wallEnd = lerp(11, 1.35, collapsePhase);
-      const rise = Math.pow(smoothstep(0.08, wallEnd, inland), lerp(1.05, 0.18, collapsePhase));
+      const wallEnd = lerp(11, 1.2, collapsePhase);
+      const rise = Math.pow(smoothstep(0.05, wallEnd, inland), lerp(1.05, 0.16, collapsePhase));
       const pillar = 0.55 + 0.45 * Math.abs(Math.sin(x * 0.48 + noise2(x * 0.07, 2.2) * 2.2));
       const face = S[o + 5] * rise * (0.82 + 0.28 * pillar * (1 - rise)) * collapsePhase;
 
@@ -388,22 +400,19 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
         mid * smoothstep(0.45, 1.1, inland)
         + (S[o + 5] - mid) * Math.pow(smoothstep(1.0, 1.7, inland), 0.28)
       );
-      // Hill plateau only further inland — avoid burying the early gentle slope / notch
-      const hill = S[o + 5] * smoothstep(lerp(10, 1.35, collapsePhase), lerp(22, 5.5, collapsePhase), inland);
+      const hill = S[o + 5] * smoothstep(lerp(10, 1.2, collapsePhase), lerp(22, 5.0, collapsePhase), inland);
       const groove = Math.max(0, 0.5 - Math.abs(Math.sin(x * 0.35)) * 1.05)
         * smoothstep(0.5, 2.5, inland) * (1 - smoothstep(3, 6.5, inland)) * collapsePhase;
 
-      let landH = Math.max(origSlope, overhang, face, step, hill) - groove * 4.8 * smoothstep(0, 0.35, s + 0.2);
-      // Carve the 海蝕凹地 undercut (low roof at waterline)
-      if (notchBand > 0.03) {
-        landH = lerp(landH, Math.min(landH, notchRoof), notchBand);
+      let landH = Math.max(preCliff, face, step, hill) - groove * 4.8 * smoothstep(0, 0.35, s + 0.2);
+
+      // Remnant foot-notch after collapse — deep indent students can see from the sea
+      if (collapsePhase > 0.15) {
+        const foot = smoothstep(0.0, 0.55, inland) * smoothstep(3.4, 0.25, inland);
+        const footRoof = 0.35 + 0.18 * S[o + 7];
+        landH = Math.min(landH, lerp(footRoof, landH, 1 - 0.9 * foot * Math.min(1, collapsePhase * 1.2)));
       }
-      // Remnant foot-notch after collapse (textbook undercut at cliff base)
-      if (collapsePhase > 0.25) {
-        const foot = smoothstep(0.0, 0.35, inland) * smoothstep(1.7, 0.35, inland);
-        landH = Math.min(landH, lerp(1.05 + 0.22 * S[o + 7], landH, 1 - 0.55 * foot));
-      }
-      landH = Math.max(landH, 0.08); // never fall through to elevated core-seabed holes
+      landH = Math.max(landH, 0.08);
       if (landH > h) { h = landH; m = MAT_LAND; }
     }
   }
@@ -478,98 +487,111 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
   }
 
   // --- tombolo sand bridge (連島沙洲) ---
-  // Early: open channel. Mid: submerged bar in the middle. Late: dry sand merges into BOTH rock shores (no water gap).
-  const t = (z - NECK_Z0 + K.leeZ * 8) / (NECK_Z1 - NECK_Z0);
-  const sandGate = smoothstep(-3.8, -0.4, K.crest); // 0 while open water, rises as bar builds
-  const shoreJoin = smoothstep(-0.9, 1.35, K.crest); // 0=mid bar only, 1=fully connected to islands
-  if (t > -0.45 && t < 1.45 && sandGate > 0.012) {
+  // Anchored on TOMB_X — grows in place and merges into BOTH rock shores.
+  // Wave direction does NOT shift the bar (avoids "sand jumping" when scrubbing / changing dir).
+  const t = (z - NECK_Z0) / (NECK_Z1 - NECK_Z0);
+  const sandGate = smoothstep(-3.8, -0.4, K.crest);
+  const shoreJoin = smoothstep(-0.9, 1.35, K.crest);
+  if (t > -0.55 && t < 1.55 && sandGate > 0.012) {
     const tc = clamp(t);
     // Along-channel presence: mid-focused while submerged; full N–S span once joining shores
-    const midFocus = smoothstep(-0.02, 0.26, tc) * smoothstep(1.02, 0.74, tc);
+    const midFocus = smoothstep(-0.05, 0.22, tc) * smoothstep(1.05, 0.78, tc);
     const along = lerp(midFocus, 1.0, shoreJoin);
 
-    // Irregular wave-accreted shoreline (not a hard rectangle)
+    // Soft irregular shoreline (wave-accreted look — not a hard rectangle)
     const edgeN =
-      0.55 * noise2(x * 0.05 + 1.7, z * 0.045)
-      + 0.32 * noise2(x * 0.13, z * 0.11 + 2.3)
-      + 0.16 * noise2(x * 0.28, z * 0.24);
+      0.62 * noise2(x * 0.048 + 1.7, z * 0.042)
+      + 0.38 * noise2(x * 0.12, z * 0.10 + 2.3)
+      + 0.22 * noise2(x * 0.26, z * 0.22)
+      + 0.12 * noise2(x * 0.55, z * 0.48);
 
-    // Meandering centreline + lee bias from wave direction
+    // Fixed meandering centreline (NO leeX drift)
     const cx = TOMB_X
-      + 4.2 * Math.sin(Math.PI * tc)
-      + 2.4 * noise2(z * 0.038, 4.1)
-      + K.leeX * (8.5 + 5 * shoreJoin) * sandGate;
+      + 3.6 * Math.sin(Math.PI * tc)
+      + 2.1 * noise2(z * 0.036, 4.1);
 
-    // Soft width: grows with deposition; flares at island toes when connecting (waist stays recognisable)
-    const baseHw = 6.5 + 9.5 * sandGate + 3.5 * shoreJoin;
-    const waist = 0.88 + 0.28 * Math.sin(Math.PI * tc);
-    const shoreFlare = shoreJoin * (0.2 + 0.95 * (1 - midFocus));
-    const hw = baseHw * waist * (1 + shoreFlare) * (1 + 0.22 * edgeN);
+    // Soft, scalloped width — strong waist + loud shore flares (not a hard rectangle)
+    const baseHw = 6.5 + 9.0 * sandGate + 3.2 * shoreJoin;
+    const waist = 0.62 + 0.48 * Math.sin(Math.PI * tc); // narrow mid-channel, fat at ends
+    const shoreFlare = shoreJoin * (0.55 + 1.45 * (1 - midFocus));
+    const scallop = 0.55 * noise2(z * 0.09, 8.1) + 0.35 * noise2(z * 0.22 + 1.3, 3.4);
+    const hw = baseHw * waist * (1 + shoreFlare) * (1 + 0.45 * edgeN + 0.25 * scallop);
 
     const dx = (x - cx) / Math.max(3.2, hw);
     const dxAbs = Math.abs(dx);
 
-    // Deposited profile: broad soft crest + gentle beach face into the water (not a hard box)
-    const crestProfile = Math.pow(Math.max(0, 1 - dxAbs * dxAbs), 1.55);
-    const wash = smoothstep(1.38, 0.5, dxAbs); // outer wash apron
+    // Soft mound crest (no flat mesa) + gentle beach face
+    const crestProfile = Math.pow(Math.max(0, 1 - Math.pow(dxAbs, 1.65)), 2.15);
+    const wash = smoothstep(1.65, 0.35, dxAbs);
     const micro =
-      S[o + 12] * (0.85 + 0.6 * sandGate)
-      + 0.4 * noise2(x * 0.42, z * 0.38) * sandGate
-      + 0.18 * noise2(x * 1.05, z * 0.95) * shoreJoin;
+      S[o + 12] * (1.0 + 0.8 * sandGate)
+      + 0.55 * noise2(x * 0.38, z * 0.34) * sandGate
+      + 0.28 * noise2(x * 0.95, z * 0.88) * shoreJoin
+      + 0.15 * noise2(x * 2.1, z * 1.9) * shoreJoin;
 
-    // Meet rock toes — sand must climb onto / against the rocky shore (no water gap)
-    const nearS = smoothstep(1.35, 0.78, ds);
-    const nearN = smoothstep(1.35, 0.78, dn);
+    // Meet rock toes — sand must climb onto rocky shore (kill water gap)
+    const nearS = smoothstep(1.5, 0.65, ds);
+    const nearN = smoothstep(1.5, 0.65, dn);
     const toeMeet = Math.max(nearS, nearN) * shoreJoin;
-    const endBoost = shoreJoin * (smoothstep(0.32, -0.05, tc) + smoothstep(0.68, 1.05, tc));
+    const endBoost = shoreJoin * (smoothstep(0.42, -0.12, tc) + smoothstep(0.58, 1.12, tc));
 
-    const ht = K.crest * crestProfile
-      + wash * Math.max(-0.55, K.crest * 0.42 - 0.35)
+    // Dry crest clearly above water once joined
+    const dryLift = Math.max(0, K.crest) * 0.55 + 0.95 * shoreJoin;
+    const ht = (K.crest + dryLift) * crestProfile
+      + wash * Math.max(-0.35, K.crest * 0.28 - 0.15)
       + micro
-      + toeMeet * (2.4 + Math.max(0, K.crest) * 0.7)
-      + endBoost * 1.4;
+      + toeMeet * (4.0 + Math.max(0, K.crest) * 1.1)
+      + endBoost * 2.4;
 
-    // Presence: mid-channel early; force full presence at toes / ends in late stage
-    const presence = Math.max(sandGate * (0.15 + 0.85 * along), Math.max(toeMeet, endBoost) * sandGate);
-    const ht2 = lerp(Math.min(seabed, -1.2), ht, presence);
-    if (ht2 > h + 0.015) {
+    // Soft lateral + along-channel feather (no hard cut ends)
+    const lateral = smoothstep(1.55, 0.48, dxAbs);
+    const endFeather = smoothstep(-0.35, 0.08, tc) * smoothstep(1.35, 0.92, tc);
+    const presence = Math.max(
+      sandGate * (0.15 + 0.85 * along) * endFeather,
+      Math.max(toeMeet, endBoost) * sandGate
+    ) * lateral;
+    let ht2 = lerp(Math.min(seabed, -1.5), ht, presence);
+    // When joining shores, never leave a water trough between sand and rock
+    if (toeMeet > 0.15) {
+      const pad = 0.9 + 1.6 * toeMeet;
+      ht2 = Math.max(ht2, pad * toeMeet);
+    }
+    if (ht2 > h + 0.01) {
       h = ht2;
-      m = ht2 > -2.5 ? MAT_SAND : MAT_SEABED;
+      m = ht2 > -2.2 ? MAT_SAND : MAT_SEABED;
     }
   }
 
-  // --- 東灣 beach (crescent accretion on east of tombolo; soft slope into water) ---
-  if (t > -0.05 && t < 1.05 && K.wb > 3.5) {
+  // --- east bay beach (crescent on east of tombolo; anchored — no wave-dir jump) ---
+  if (t > -0.08 && t < 1.08 && K.wb > 3.5) {
     const tc = clamp(t);
     const beachR = K.wb * (0.8 + 0.28 * Math.sin(Math.PI * tc));
-    const shoreX = TOMB_X + 7 + 5.5 * Math.pow(Math.abs(2 * tc - 1), 1.6) + K.leeX * 7
-      + 2.2 * noise2(z * 0.05, 6.2);
+    const shoreX = TOMB_X + 8 + 5.0 * Math.pow(Math.abs(2 * tc - 1), 1.6)
+      + 2.0 * noise2(z * 0.05, 6.2);
     const dx = x - shoreX;
-    const edgeN = 0.35 * noise2(x * 0.12, z * 0.1) + 0.2 * noise2(x * 0.3, z * 0.25);
-    const softR = beachR * (1 + 0.18 * edgeN);
-    if (dx > -6 && dx < softR + 22) {
-      // gentle beach face: high near tombolo, sloping into water
+    const edgeN = 0.4 * noise2(x * 0.12, z * 0.1) + 0.22 * noise2(x * 0.3, z * 0.25);
+    const softR = beachR * (1 + 0.2 * edgeN);
+    if (dx > -7 && dx < softR + 24) {
       const u = Math.max(0, dx) / Math.max(4, softR);
-      const hb = Math.min(K.crest + 0.55, 2.05) - 4.2 * Math.pow(u, 1.15) + S[o + 9]
-        + 0.25 * noise2(x * 0.5, z * 0.45);
-      const edge = smoothstep(softR * 0.75, softR + 18, dx);
+      const hb = Math.min(K.crest + 0.85, 2.35) - 4.0 * Math.pow(u, 1.2) + S[o + 9]
+        + 0.28 * noise2(x * 0.5, z * 0.45);
+      const edge = smoothstep(softR * 0.7, softR + 20, dx);
       const alongBeach = smoothstep(-0.02, 0.12, tc) * smoothstep(1.02, 0.88, tc);
       const hh = lerp(hb, seabed, edge) * smoothstep(0.22, 0.52, s) * (0.55 + 0.45 * alongBeach + 0.35 * shoreJoin);
       if (hh > h) { h = hh; m = hh > -2.4 ? MAT_SAND : MAT_SEABED; }
     }
   }
 
-  // --- west lagoon / lee bay (shallow when waves come from east) ---
+  // --- west lagoon (shallow pocket; anchored — no wave-dir jump) ---
   if (t > 0.12 && t < 0.88 && x < TOMB_X - 4) {
-    const bay = bump(x, TOMB_X - 20 - K.leeX * 6, 20) * bump(z, 12 + K.leeZ * 10, 38);
-    const leeWest = smoothstep(-0.2, 0.8, -K.leeX); // more fill when lee is west (waves from E)
+    const bay = bump(x, TOMB_X - 20, 20) * bump(z, 12, 38);
     if (bay > 0.04) {
-      const hb = -0.6 - 2.2 * bay + 1.2 * leeWest * sandGate + S[o + 11];
+      const hb = -0.6 - 2.2 * bay + 0.55 * sandGate + S[o + 11];
       if (hb > h && h < 1.8) { h = Math.max(h, hb); if (h < 0.35) m = h > -1.5 ? MAT_SAND : MAT_SEABED; }
     }
   }
 
-  // --- 饅頭石 (rounded boulder on SE platform) ---
+  // --- rounded boulder on SE platform (teaching prop) ---
   const dM = S[o + 14];
   if (dM < MANTOU.r + 8) {
     const br = MANTOU.r * (0.85 + 0.15 * s);
@@ -613,28 +635,28 @@ export function planCell(x: number, z: number, s: number, waveDir = 180): number
   const tip = Math.hypot((x - HX) / 14, (z - 118) / 28);
   if (tip < 1.05 && z > 85) return 1;
   const K = stageConsts(s, waveDir);
-  const t = (z - NECK_Z0 + K.leeZ * 8) / (NECK_Z1 - NECK_Z0);
+  const t = (z - NECK_Z0) / (NECK_Z1 - NECK_Z0);
   const sandGate = smoothstep(-3.8, -0.4, K.crest);
   const shoreJoin = smoothstep(-0.9, 1.35, K.crest);
-  if (t > -0.3 && t < 1.3 && sandGate > 0.06) {
+  if (t > -0.35 && t < 1.35 && sandGate > 0.06) {
     const tc = clamp(t);
-    const midFocus = smoothstep(-0.02, 0.26, tc) * smoothstep(1.02, 0.74, tc);
+    const midFocus = smoothstep(-0.05, 0.22, tc) * smoothstep(1.05, 0.78, tc);
     const along = lerp(midFocus, 1.0, shoreJoin);
-    const edgeN = 0.45 * noise2(x * 0.05 + 1.7, z * 0.045) + 0.25 * noise2(x * 0.13, z * 0.11);
-    const cx = TOMB_X + 4.2 * Math.sin(Math.PI * tc) + 2.4 * noise2(z * 0.038, 4.1) + K.leeX * (8.5 + 5 * shoreJoin) * sandGate;
-    const baseHw = 6.5 + 9.5 * sandGate + 3.5 * shoreJoin;
-    const shoreFlare = shoreJoin * (0.2 + 0.95 * (1 - midFocus));
-    const hw = baseHw * (0.88 + 0.28 * Math.sin(Math.PI * tc)) * (1 + shoreFlare) * (1 + 0.22 * edgeN);
-    const dx = (x - cx) / Math.max(3.2, hw);
-    const nearS = smoothstep(1.28, 0.9, massDist(x, z, SOUTH_RING, 11));
-    const nearN = smoothstep(1.28, 0.9, massDist(x, z, NORTH_RING, 10));
+    const edgeN = 0.5 * noise2(x * 0.048 + 1.7, z * 0.042) + 0.28 * noise2(x * 0.12, z * 0.1);
+    const cx = TOMB_X + 3.6 * Math.sin(Math.PI * tc) + 2.1 * noise2(z * 0.036, 4.1);
+    const baseHw = 7.2 + 10.5 * sandGate + 4.0 * shoreJoin;
+    const shoreFlare = shoreJoin * (0.35 + 1.1 * (1 - midFocus));
+    const hw = baseHw * (0.86 + 0.3 * Math.sin(Math.PI * tc)) * (1 + shoreFlare) * (1 + 0.28 * edgeN);
+    const dx = (x - cx) / Math.max(3.5, hw);
+    const nearS = smoothstep(1.35, 0.85, massDist(x, z, SOUTH_RING, 11));
+    const nearN = smoothstep(1.35, 0.85, massDist(x, z, NORTH_RING, 10));
     const toeMeet = Math.max(nearS, nearN) * shoreJoin;
-    if ((Math.abs(dx) < 1.12 * (0.35 + 0.65 * along) || toeMeet > 0.35) && K.crest > -2.4) return 2;
+    if ((Math.abs(dx) < 1.15 * (0.35 + 0.65 * along) || toeMeet > 0.3) && K.crest > -2.4) return 2;
   }
-  if (t > -0.02 && t < 1.02 && K.wb > 3.5) {
+  if (t > -0.05 && t < 1.05 && K.wb > 3.5) {
     const tc = clamp(t);
     const beachR = K.wb * (0.8 + 0.28 * Math.sin(Math.PI * tc));
-    const shoreX = TOMB_X + 7 + 5.5 * Math.pow(Math.abs(2 * tc - 1), 1.6) + K.leeX * 7;
+    const shoreX = TOMB_X + 8 + 5.0 * Math.pow(Math.abs(2 * tc - 1), 1.6);
     const dx = x - shoreX;
     if (dx > -3 && dx < beachR + 8 && s > 0.28) return 2;
   }

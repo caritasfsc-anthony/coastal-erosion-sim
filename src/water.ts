@@ -92,6 +92,8 @@ void main(){
   if (uOuter < 0.5 && r > 340.0) discard;
   if (uOuter > 0.5 && r < 340.0) discard;
   float depth = vWorld.y - landH(vWorld.xz);
+  // Dry land (sand/rock above water): hide water so foam never "washes through" the tombolo
+  if (depth < -0.12) discard;
   vec2 q = vWorld.xz;
   // micro detail normal
   float e = 0.6;
@@ -129,6 +131,7 @@ void main(){
   float crest = smoothstep(0.7, 1.05, vCrest + n1*0.5 - 0.25) * 0.45 * big * smoothstep(0.6, 1.4, uAmp);
   float foam = clamp(shore*1.05 + band*0.78 + crest, 0.0, 1.0) * smoothstep(0.28, 0.66, n2 + shore*0.16 + band*0.1);
   foam = max(foam, wash*0.95);
+  foam *= smoothstep(-0.2, 0.35, depth); // kill foam on dry sand crest
   col = mix(col, uFoam, foam);
   float alpha = mix(0.42, 0.95, smoothstep(0.0, 5.0, depth));
   alpha = max(max(alpha, foam), fres);

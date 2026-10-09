@@ -26,7 +26,7 @@ W.scene.add(cliffGuide.group);
 
 // geometry is rebuilt in a worker so dragging the timeline never blocks rendering
 const worker = new Worker(new URL('./buildWorker.ts', import.meta.url), { type: 'module' });
-let reqId = 0, inflight = false, requested = -1, requestedWd = -1;
+let reqId = 0, inflight = false, requested = -1;
 let firstBuild: (() => void) | null = null;
 worker.onmessage = (e: MessageEvent) => {
   const { s, head, terrain, geo } = e.data;
@@ -44,7 +44,6 @@ worker.onmessage = (e: MessageEvent) => {
 function requestBuild(s: number) {
   requested = s;
   inflight = true;
-  requestedWd = app.waveDir;
   worker.postMessage({ s, wd: app.waveDir, id: ++reqId });
 }
 
@@ -110,7 +109,9 @@ function focusLandform(id: LandformId, stage = app.stage, dur = 1.8) {
   }
   const st = landformState(id, stage);
   const target = st.pos.clone();
-  target.y = Math.max(1.5, target.y * 0.6);
+  // For cliff teaching beats, keep the waterline / notch in frame
+  if (id === 'cliff' && stage < 0.35) target.y = Math.min(target.y, 3.2);
+  else target.y = Math.max(1.5, target.y * 0.6);
   const off = new THREE.Vector3(...lf.view);
   flyTo(target.clone().add(off), target, dur);
 }
@@ -145,7 +146,7 @@ function updateSplashSources(s: number) {
     }
   }
   add('tip', HX, tip + 0.8, 0, 1, 2, 16);
-  // 南氹 south cliff (sea to the south, normal −Z)
+  // South cliff (sea to the south, normal −Z)
   for (let x = -25; x <= 65; x += 9) {
     add(`sc${x}`, x, southCliff(x, s) - 0.7, 0, -1, 0.85, 18);
     if (s > 0.12) add(`se${x}`, x + 3, southCoast0(x) - 7, 0, -1, 0.4, 1.5);
@@ -155,7 +156,7 @@ function updateSplashSources(s: number) {
     if (Math.abs(x - GX) < 8) continue;
     add(`nc${x}`, x, northCliff(x, s) + 0.7, 0, 1, 0.75, 16);
   }
-  // Mantou Rock
+  // SE boulder landmark
   add('mantou', MANTOU.x, MANTOU.z + MANTOU.r * 0.3, 0.4, -0.9, 1.1, 8);
   // geo surge
   if (s > 0.05) {
@@ -232,10 +233,10 @@ function projectStrike() {
   strikeEl.style.transform = `translate(${x}px, ${y}px)`;
 }
 
-/** Discrete collapse beats: 南氹海蝕凹地頂部、拱頂、柱腳. */
+/** Discrete collapse beats: south-cliff notch roof, arch, stack base. */
 function detectCollapses(prev: number, s: number) {
   if (!(s > prev) || s - prev > 0.06) return;
-  // 南氹：海蝕凹地頂部崩塌 → 陡峭海崖
+  // South cliff：海蝕凹地頂部崩塌 → 陡峭海崖
   if (prev < CLIFF_COLLAPSE_S && s >= CLIFF_COLLAPSE_S) {
     const x = 18;
     const z = southCliff(x, s);
@@ -287,14 +288,43 @@ function updateLandformStates() {
 const tmp = new THREE.Vector3();
 function projectHotspots() {
   const w = window.innerWidth, h = window.innerHeight;
+  // First pass: project; second pass: push overlapping labels apart in screen space
+  const placed: { x: number; y: number; z: number; hs: HS; vis: boolean }[] = [];
   for (const hs of hotspots) {
     tmp.copy(hs.pos).project(camera);
     const vis = tmp.z < 1 && Math.abs(tmp.x) < 1.15 && Math.abs(tmp.y) < 1.15;
     hs.el.classList.toggle('hidden', !vis);
-    if (!vis) continue;
-    const x = (tmp.x * 0.5 + 0.5) * w, y = (-tmp.y * 0.5 + 0.5) * h;
-    hs.el.style.transform = `translate(${x - 9}px, ${y - 9}px)`;
-    hs.el.style.zIndex = String(Math.round((1 - tmp.z) * 100000));
+    placed.push({
+      x: (tmp.x * 0.5 + 0.5) * w,
+      y: (-tmp.y * 0.5 + 0.5) * h,
+      z: tmp.z,
+      hs,
+      vis,
+    });
+  }
+  const minD = 58;
+  for (let iter = 0; iter < 6; iter++) {
+    for (let i = 0; i < placed.length; i++) {
+      if (!placed[i].vis || !placed[i].hs.present) continue;
+      for (let j = i + 1; j < placed.length; j++) {
+        if (!placed[j].vis || !placed[j].hs.present) continue;
+        const a = placed[i], b = placed[j];
+        let dx = a.x - b.x, dy = a.y - b.y;
+        let d2 = dx * dx + dy * dy;
+        if (d2 < 1e-3) { dx = 0.7; dy = -0.7; d2 = 1; }
+        const d = Math.sqrt(d2);
+        if (d >= minD) continue;
+        const push = (minD - d) * 0.5;
+        const ux = dx / d, uy = dy / d;
+        a.x += ux * push; a.y += uy * push;
+        b.x -= ux * push; b.y -= uy * push;
+      }
+    }
+  }
+  for (const p of placed) {
+    if (!p.vis) continue;
+    p.hs.el.style.transform = `translate(${p.x - 9}px, ${p.y - 9}px)`;
+    p.hs.el.style.zIndex = String(Math.round((1 - p.z) * 100000));
   }
 }
 
@@ -352,7 +382,7 @@ function selectLandform(id: LandformId, focus: boolean) {
   } else {
     seqEl.innerHTML = `<p class="seq-text">${lf.sequence}</p>`;
   }
-  $('info-example').textContent = lf.example ? `香港例子：${lf.example}` : '';
+  $('info-example').textContent = lf.example ? `例子：${lf.example}` : '';
   renderInfoStatus(id);
   info.classList.add('open');
   closeProcess();
@@ -598,12 +628,14 @@ function geoGuideWanted(now: number): boolean {
   if (app.mode === 'story') return STORY[storyIdx].focus === 'geo';
   return app.selected === 'geo' || (watch !== null && watch.id === 'geo' && now < watch.until);
 }
-/** 南氹海崖／海蝕凹地／崩塌教學標註. */
+/** South cliff／海蝕凹地／崩塌 teaching overlay. */
 function cliffGuideWanted(now: number): boolean {
   if (app.mode === 'quiz') return false;
   if (app.mode === 'story') return STORY[storyIdx].focus === 'cliff' || STORY[storyIdx].focus === 'platform';
-  return app.selected === 'cliff' || app.selected === 'platform'
-    || (watch !== null && (watch.id === 'cliff' || watch.id === 'platform') && now < watch.until);
+  if (app.selected === 'cliff' || app.selected === 'platform') return true;
+  if (watch !== null && (watch.id === 'cliff' || watch.id === 'platform') && now < watch.until) return true;
+  // Auto-show during notch → collapse so students never miss the geometry
+  return app.built >= 0.08 && app.built <= 0.38;
 }
 
 // ------------------------------------------------------------------ top-view minimap (右上角)
@@ -687,7 +719,8 @@ function frame() {
     setStage(app.stage + dt / 36);
     if (app.stage >= 1) setPlaying(false);
   }
-  if (!inflight && (Math.abs(app.stage - requested) > 0.0005 || Math.abs(app.waveDir - requestedWd) > 0.5)) requestBuild(app.stage);
+  // Rebuild only when stage changes — wave dir rotates swell / splash, not landforms
+  if (!inflight && Math.abs(app.stage - requested) > 0.0005) requestBuild(app.stage);
 
   if (camTween) {
     camTween.t += dt / camTween.dur;
@@ -737,11 +770,11 @@ function frame() {
 const DIR_NAMES: [number, string, string][] = [
   [0, '北', '北岸／海蝕隙受浪較強'],
   [45, '東北', '東北岩岬浪擊加強'],
-  [90, '東', '東岸受蝕 · 沙偏向西側堆積'],
-  [135, '東南', '南氹與饅頭石一帶浪強'],
-  [180, '南', '南氹海崖受蝕較強'],
-  [225, '西南', '西南岸浪強 · 東灣較受掩護'],
-  [270, '西', '西岸受蝕 · 沙偏向東灣堆積'],
+  [90, '東', '東岸受蝕較強'],
+  [135, '東南', '東南岸／巨礫一帶浪強'],
+  [180, '南', '南岸海崖受蝕較強'],
+  [225, '西南', '西南岸浪強 · 東側海灣較受掩護'],
+  [270, '西', '西岸受蝕較強'],
   [315, '西北', '西北岸浪強'],
 ];
 const WAVE_BEARINGS = DIR_NAMES.map((d) => d[0]);
@@ -770,7 +803,7 @@ function applyWaveDir(deg: number, rebuild = true) {
   water.setWaveAngle((-deg * Math.PI) / 180);
   if (rebuild) {
     updateSplashSources(app.built);
-    requestedWd = -999;
+    // Do NOT requestBuild — sand / stack stay anchored; only swell + spray rotate
   }
   checkMiniGoal();
   dirtyMinimap = true;
@@ -800,7 +833,7 @@ function checkMiniGoal() {
   // goal: wave from east (exact 8-way) and late stage
   const east = app.waveDir === 90;
   if (east && app.stage > 0.7) {
-    $('mg-text').textContent = '做得好！浪從東方來時，沙偏向西側堆積——這就是背浪面沉積。';
+    $('mg-text').textContent = '做得好！你已用東方浪向＋後期時間軸觀察海岸變化。';
     $('mg-done').textContent = '太棒了 ✓';
   }
 }
@@ -824,7 +857,7 @@ function boot() {
   requestBuild(0);
   requestAnimationFrame(frame);
 }
-($('loader-text')).textContent = '正在雕刻長洲岩岸⋯';
+($('loader-text')).textContent = '正在雕刻岩岸⋯';
 requestAnimationFrame(() => setTimeout(boot, 30));
 
 // expose for debugging / automated screenshots

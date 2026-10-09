@@ -161,6 +161,8 @@ export class TerrainCore {
       } else if (h < 3) {
         if (x > HX - 20 && x < HX + 20 && z > 85 && z < 152 && solidAt(x, z)) h = 4;
       }
+      // Bias dry/wet sand up in the water depth map so foam never "washes through" the tombolo
+      if (this.inner.mats[v] === MAT_SAND && h > -1.4) h = Math.max(h, 0.85 + Math.max(0, h) * 0.35);
       const e = Math.max(0, Math.min(255, Math.round(((h + 28) / 72) * 255)));
       tex[v * 4] = e; tex[v * 4 + 1] = e; tex[v * 4 + 2] = e; tex[v * 4 + 3] = 255;
     }
