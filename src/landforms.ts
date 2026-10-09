@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import {
   H, HX, NECK_Z0, NECK_Z1, SEGMENTS, TOMB_X, beachWidth, caveParams, caveZ,
   geoParams, geoX, headHalfWidth, headTop, phase, southCliff, southCoast0,
-  stackGeom, tomboloCrest,
+  retreat, stackGeom, tomboloCrest,
 } from './world';
 
 export type LandformId = 'cliff' | 'platform' | 'geo' | 'cave' | 'arch' | 'stack' | 'stump' | 'beach' | 'tombolo';
@@ -27,32 +27,32 @@ export interface Landform {
 export const LANDFORMS: Landform[] = [
   {
     id: 'cliff', zh: '海崖', en: 'Sea Cliff', tag: '侵蝕地貌',
-    short: '海浪在岩岸底部不斷侵蝕，令上方岩石崩塌而形成的陡峭岩壁。長洲南氹岸可見典型海崖。',
+    short: '浪先在崖腳蝕出浪蝕凹壁，凹壁頂部崩塌後形成陡峭岩壁；海崖不斷向陸後退。長洲南氹可見。',
     steps: [
-      '破壞性海浪在高潮位附近衝擊岩岸底部。',
-      '水力作用與磨蝕作用在崖腳蝕出「浪蝕凹壁」（wave-cut notch）。',
-      '凹壁愈蝕愈深，上方岩石失去支撐而崩塌，形成陡峭的海崖。',
-      '「侵蝕 → 凹壁 → 崩塌」不斷重複，海崖逐漸向陸地後退。',
+      '原本岩岸較為和緩（原本的坡面）。破壞性海浪在高潮位附近衝擊崖腳。',
+      '水力作用與磨蝕作用蝕出「浪蝕凹壁」（wave-cut notch），凹壁愈蝕愈深。',
+      '凹壁頂部岩石失去支撐而崩塌，形成陡峭的海崖。',
+      '「凹壁 → 崩塌」反覆進行，海崖向陸地後退，崖腳留下愈來愈闊的浪蝕平台。',
     ],
     processes: ['水力作用', '磨蝕作用', '風化及塊體移動'],
-    sequence: '海崖後退時會在崖腳留下浪蝕平台；岬角上的海崖沿弱點發展成海蝕洞。',
+    sequence: '海崖後退留下浪蝕平台；岬角上海崖沿弱點可發展成海蝕洞。',
     example: '長洲南氹（Nam Tam）南岸；亦可對照西貢東部、東平洲。',
-    bestStage: 0.28, view: [38, 22, -48],
+    bestStage: 0.26, view: [48, 18, -72],
     quiz: '由崖腳的浪蝕凹壁不斷擴大、上方岩石崩塌而形成的陡峭岩壁是？',
   },
   {
     id: 'platform', zh: '浪蝕平台', en: 'Wave-cut Platform', tag: '侵蝕地貌',
-    short: '海崖後退後，在崖腳留下的一片平坦、略向海傾的岩石台地。南氹岸可見清晰平台與凹壁對比。',
+    short: '海崖後退後，波浪沖走崩塌岩屑，在崖腳留下平坦、略向海傾的岩石台地；後退愈多，平台愈闊。',
     steps: [
-      '海崖受浪蝕而不斷後退。',
-      '原本位於崖腳、潮間帶高度的岩石被留下，形成平緩、略向海傾斜的平台。',
-      '平台在低潮時露出水面，表面常見潮池與海藻。',
-      '平台愈闊，波浪在到達崖腳前消耗愈多能量，海崖後退速度因而減慢。',
+      '海崖因持續受蝕而向陸地後退（對照原本較前的坡面）。',
+      '波浪沖走崩塌了的岩屑，潮間帶高度的基岩被留下，形成平緩平台。',
+      '平台在低潮時露出水面；海崖愈後退，浪蝕平台愈闊。',
+      '平台愈闊，波浪到達崖腳前已消耗較多能量，後退速度因而減慢。',
     ],
     processes: ['磨蝕作用', '水力作用'],
     sequence: '是「海崖後退」留下的證據；海蝕柱和殘柱最後亦會被削平成平台的一部分。',
     example: '長洲南氹浪蝕平台；東南岸饅頭石附近的石台。',
-    bestStage: 0.85, view: [42, 20, -58],
+    bestStage: 0.88, view: [55, 16, -85],
     quiz: '低潮時露出水面、由海崖後退後遺留的平緩岩石台地是？',
   },
   {
@@ -190,17 +190,27 @@ export function landformState(id: LandformId, s: number, out = new THREE.Vector3
     case 'cliff': {
       const x = 18;
       const cl = southCliff(x, s);
-      return { present: true, pos: out.set(x, H * 0.62, cl + 1.2), note: `南氹：崖腳可見浪蝕凹壁 · 岸線已後退約 ${Math.round(14 * s)} 米（示意）` };
+      const R = Math.round(retreat(s));
+      let note: string;
+      if (s < 0.12) note = '初期：原本坡面受浪衝擊，崖腳開始出現浪蝕凹壁';
+      else if (s < 0.28) note = `凹壁加深，頂部岩石快將／正在崩塌 · 已後退約 ${R} 米（示意）`;
+      else note = `陡峭海崖成形 · 岸線已後退約 ${R} 米，崖腳平台擴闊中（示意）`;
+      return { present: true, pos: out.set(x, H * 0.62, cl + 1.2), note };
     }
     case 'platform': {
       const x = 22;
       const cl = southCliff(x, s);
       const c0 = southCoast0(x);
-      const w = (c0 - cl) + 16 + 18 * s;
+      const platPhase = s < 0.14 ? 0 : Math.min(1, (s - 0.14) / 0.86);
+      // smoothstep approx for note readout
+      const t = platPhase * platPhase * (3 - 2 * platPhase);
+      const w = Math.max(2, c0 - cl) + 2 + 30 * t;
       return {
-        present: s > 0.1,
-        pos: out.set(x, 1.5, cl - Math.max(6, w * 0.45)),
-        note: s > 0.1 ? `南氹浪蝕平台闊約 ${Math.round(w)} 米 · 低潮時更清晰` : '海崖剛開始後退，平台仍很窄',
+        present: s > 0.08,
+        pos: out.set(x, 1.4, cl - Math.max(5, w * 0.4)),
+        note: s < 0.14
+          ? '凹壁／崩塌初期：浪蝕平台仍很窄'
+          : `波浪沖走岩屑後留下平台 · 現闊約 ${Math.round(w)} 米，隨海崖後退而擴闊`,
       };
     }
     case 'geo': {

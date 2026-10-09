@@ -22,8 +22,24 @@ export function colorFor(out: RGB, x: number, z: number, h: number, m: number, n
   const n = 0.5 + 0.5 * noise2(x * 0.15, z * 0.15);
   let a, b, t: number;
   if (m === MAT_SAND) {
-    if (h > 0.6) { a = PAL.sandWet; b = PAL.sand; t = smoothstep(0.6, 1.6, h); }
-    else { a = PAL.sandDeep; b = PAL.sandWet; t = smoothstep(-2.5, 0.6, h); }
+    // Fine wave-accreted grain + subtle swash ripples (not a flat tiled slab)
+    const grain = 0.5 + 0.5 * noise2(x * 0.7, z * 0.7);
+    const grain2 = 0.5 + 0.5 * noise2(x * 1.8 + 2.1, z * 1.6);
+    const ripple = 0.5 + 0.5 * Math.sin(x * 1.15 + z * 0.4 + noise2(x * 0.22, z * 0.2) * 2.4);
+    if (h > 0.55) {
+      a = PAL.sandWet; b = PAL.sand;
+      t = smoothstep(0.55, 1.9, h) * (0.72 + 0.18 * grain + 0.1 * ripple);
+    } else {
+      a = PAL.sandDeep; b = PAL.sandWet;
+      t = smoothstep(-2.6, 0.55, h) * (0.68 + 0.2 * grain + 0.12 * grain2);
+    }
+    out[0] = lerp(a.r, b.r, t); out[1] = lerp(a.g, b.g, t); out[2] = lerp(a.b, b.b, t);
+    // dry crest highlight + wet swash band
+    const dry = smoothstep(0.4, 1.5, h) * (0.08 + 0.1 * grain2);
+    out[0] = Math.min(1, out[0] + dry * 0.12); out[1] = Math.min(1, out[1] + dry * 0.1); out[2] = Math.min(1, out[2] + dry * 0.07);
+    const swash = smoothstep(0.55, -0.05, h) * smoothstep(-1.6, 0.15, h) * (0.12 + 0.1 * ripple);
+    out[0] = lerp(out[0], PAL.sandWet.r, swash); out[1] = lerp(out[1], PAL.sandWet.g, swash); out[2] = lerp(out[2], PAL.sandWet.b, swash);
+    return out;
   } else if (m === MAT_PLAT) {
     a = PAL.platWet; b = PAL.plat; t = smoothstep(-0.5, 0.35, h) * (0.55 + 0.45 * n);
     // brighter flat apron so students can tell platform from cliff rock

@@ -5,10 +5,10 @@ import { surfaceNets } from './surfaceNets';
 import { rockColor, type RGB } from './palette';
 
 export const DOMAIN = {
-  // NE tip of Cheung Chau teaching silhouette (海蝕洞→拱→柱) — taller for cliff silhouette
+  // NE tip of Cheung Chau teaching silhouette (海蝕洞→拱→柱) — extend +Z so offshore stacks fit
   origin: [HX - 22, -3.2, 82] as [number, number, number],
-  cell: [0.68, 0.62, 0.72] as [number, number, number],
-  n: [66, 52, 98] as [number, number, number],
+  cell: [0.7, 0.62, 0.85] as [number, number, number],
+  n: [66, 52, 120] as [number, number, number],
 };
 
 function ellipsoid(x: number, y: number, z: number, rx: number, ry: number, rz: number): number {
@@ -36,7 +36,9 @@ function segSDF(k: number, S: SegState, x: number, y: number, z: number, w: numb
   }
   if (cv.collapse > 0) {
     const cutBottom = top + 2 + (-6 - top - 2) * cv.collapse;
-    const cut = Math.max(seg.a - 3 - z, z - st.z0, cutBottom - y);
+    // Carve through to cutSea so a clear water gap opens before the offshore stack
+    const cutSea = st.cutSea ?? (st.z0 - (st.gapClear ?? 6));
+    const cut = Math.max(seg.a - 3 - z, z - cutSea, cutBottom - y);
     d = Math.max(d, -cut);
     if (cv.stack > 0) {
       let dc = Math.max(Math.hypot(x - HX, z - st.zs) - st.r, y - top);
@@ -124,7 +126,7 @@ export class HeadlandCore {
           let d = Math.max(ax - w, y - top, z - HEAD_BODY_END - 2.5);
           for (let q = 0; q < SEGMENTS.length; q++) {
             const sg = SEGMENTS[q];
-            if (z < sg.a - 8 || z > sg.b + 2) continue;
+            if (z < sg.a - 8 || z > sg.b + 40) continue;
             const ds = segSDF(q, S[q], x, y, z, w, top);
             if (ds < d) d = ds;
           }
