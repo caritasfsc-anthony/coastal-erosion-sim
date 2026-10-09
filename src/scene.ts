@@ -13,20 +13,20 @@ import { applyWetSheen } from './wet';
 import { CliffDebris } from './debris';
 
 export function createWorld(canvas: HTMLCanvasElement) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = 1.08;
 
-  const sunDir = new THREE.Vector3(0.78, 0.42, -0.46).normalize();
+  const sunDir = new THREE.Vector3(0.65, 0.55, -0.52).normalize();
   const sunColor = new THREE.Color(0xffe0b8);
-  const skyTop = new THREE.Color(0x1d4d7c);
-  const skyHorizon = new THREE.Color(0xd9c4aa);
+  const skyTop = new THREE.Color(0x1a5a8e);
+  const skyHorizon = new THREE.Color(0xe2d0b6);
   const fogColor = skyHorizon.clone();
-  const fogDensity = 0.00095;
+  const fogDensity = 0.00055;
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(fogColor, fogDensity);
@@ -53,9 +53,9 @@ export function createWorld(canvas: HTMLCanvasElement) {
   envSky.scale.setScalar(40);
   envScene.add(envSky);
   scene.environment = pmrem.fromScene(envScene, 0.02, 0.1, 100).texture;
-  scene.environmentIntensity = 0.55;
+  scene.environmentIntensity = 0.62;
 
-  const sun = new THREE.DirectionalLight(sunColor, 3.1);
+  const sun = new THREE.DirectionalLight(sunColor, 3.35);
   sun.position.copy(sunDir).multiplyScalar(400).add(new THREE.Vector3(0, 0, 0));
   sun.target.position.set(0, 0, 0);
   sun.castShadow = true;
@@ -65,9 +65,9 @@ export function createWorld(canvas: HTMLCanvasElement) {
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.6;
   scene.add(sun, sun.target);
-  scene.add(new THREE.HemisphereLight(0xbcd7ee, 0x4a3d30, 0.55));
+  scene.add(new THREE.HemisphereLight(0xc5dff0, 0x4a3d30, 0.62));
 
-  const landMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, envMapIntensity: 0.8 });
+  const landMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0.02, envMapIntensity: 0.95 });
   applyWetSheen(landMat);
   const land = new LandMeshes(landMat);
   const debris = new CliffDebris();
@@ -85,7 +85,7 @@ export function createWorld(canvas: HTMLCanvasElement) {
   const composer = new EffectComposer(renderer, rt);
   composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(size, 0.32, 0.55, 0.92);
+  const bloom = new UnrealBloomPass(size, 0.28, 0.5, 0.88);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 

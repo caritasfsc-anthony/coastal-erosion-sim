@@ -145,7 +145,7 @@ export class TerrainCore {
       } else if (h < 3) {
         if (x > HX - 20 && x < HX + 20 && z > 85 && z < 152 && solidAt(x, z)) h = 4;
       }
-      const e = Math.max(0, Math.min(255, Math.round(((h + 24) / 48) * 255)));
+      const e = Math.max(0, Math.min(255, Math.round(((h + 28) / 72) * 255)));
       tex[v * 4] = e; tex[v * 4 + 1] = e; tex[v * 4 + 2] = e; tex[v * 4 + 3] = 255;
     }
     return tex;

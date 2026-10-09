@@ -6,8 +6,8 @@ import { WAVES } from './water';
 export const wetUniforms = {
   uWetTime: { value: 0 },
   uWetLevel: { value: 0 },
-  uWetBase: { value: 1.4 },
-  uWetSurge: { value: 1.6 },
+  uWetBase: { value: 1.7 },
+  uWetSurge: { value: 1.9 },
 };
 
 const f = (v: number) => v.toFixed(5);
@@ -36,7 +36,7 @@ uniform float uWetTime, uWetLevel, uWetBase, uWetSurge;`)
   wet *= 1.0 - smoothstep(uWetLevel - 0.2, uWetLevel - 1.6, vWetPos.y) * 0.6; // fully submerged rock is not shiny
   diffuseColor.rgb *= mix(1.0, 0.66, wet);`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-  roughnessFactor = mix(roughnessFactor, 0.2, wet * 0.92);`);
+  roughnessFactor = mix(roughnessFactor, 0.16, wet * 0.95);`);
   };
   mat.customProgramCacheKey = () => 'wet-sheen';
 }

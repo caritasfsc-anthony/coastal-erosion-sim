@@ -5,10 +5,10 @@ import { surfaceNets } from './surfaceNets';
 import { rockColor, type RGB } from './palette';
 
 export const DOMAIN = {
-  // NE tip of Cheung Chau teaching silhouette (海蝕洞→拱→柱)
+  // NE tip of Cheung Chau teaching silhouette (海蝕洞→拱→柱) — taller for cliff silhouette
   origin: [HX - 22, -3.2, 82] as [number, number, number],
-  cell: [0.68, 0.58, 0.72] as [number, number, number],
-  n: [66, 46, 98] as [number, number, number],
+  cell: [0.68, 0.62, 0.72] as [number, number, number],
+  n: [66, 52, 98] as [number, number, number],
 };
 
 function ellipsoid(x: number, y: number, z: number, rx: number, ry: number, rz: number): number {
@@ -130,7 +130,13 @@ export class HeadlandCore {
           }
           if (d < 4 && d > -4) {
             let nv = NC[id];
-            if (nv !== nv) { nv = 0.9 * fbm3(x * 0.17, y * 0.2, z * 0.17, 3) + 1.5 * noise3(x * 0.055, y * 0.07, z * 0.055) + 0.22 * Math.sin(y * 1.7 + strat); NC[id] = nv; }
+            if (nv !== nv) {
+              // angular granite facets + stratified beds (avoid soft blob)
+              const facet = 1.15 * Math.abs(noise3(x * 0.11, y * 0.09, z * 0.11))
+                + 0.7 * Math.abs(noise3(x * 0.28, y * 0.22, z * 0.28));
+              nv = 0.55 * fbm3(x * 0.15, y * 0.18, z * 0.15, 3) + facet + 0.35 * Math.sin(y * 2.1 + strat);
+              NC[id] = nv;
+            }
             d += nv + notch * Math.exp(-((y - 0.8) ** 2) / (y > 0.8 ? 1.5 : 0.55));
           }
           F[id] = d;

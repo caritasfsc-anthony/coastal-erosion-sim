@@ -37,7 +37,7 @@ export const LANDFORMS: Landform[] = [
     processes: ['水力作用', '磨蝕作用', '風化及塊體移動'],
     sequence: '海崖後退時會在崖腳留下浪蝕平台；岬角上的海崖沿弱點發展成海蝕洞。',
     example: '長洲南氹（Nam Tam）南岸；亦可對照西貢東部、東平洲。',
-    bestStage: 0.22, view: [22, 14, -55],
+    bestStage: 0.28, view: [38, 22, -48],
     quiz: '由崖腳的浪蝕凹壁不斷擴大、上方岩石崩塌而形成的陡峭岩壁是？',
   },
   {
@@ -52,7 +52,7 @@ export const LANDFORMS: Landform[] = [
     processes: ['磨蝕作用', '水力作用'],
     sequence: '是「海崖後退」留下的證據；海蝕柱和殘柱最後亦會被削平成平台的一部分。',
     example: '長洲南氹浪蝕平台；東南岸饅頭石附近的石台。',
-    bestStage: 0.85, view: [32, 16, -72],
+    bestStage: 0.85, view: [42, 20, -58],
     quiz: '低潮時露出水面、由海崖後退後遺留的平緩岩石台地是？',
   },
   {

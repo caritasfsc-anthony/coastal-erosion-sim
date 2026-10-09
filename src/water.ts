@@ -42,7 +42,7 @@ const LAND = /* glsl */ `
 uniform sampler2D uHeight; uniform vec3 uHeightRect;
 float landH(vec2 xz){ vec2 uv=(xz-uHeightRect.xy)/uHeightRect.z;
   if(uv.x<0.0||uv.y<0.0||uv.x>1.0||uv.y>1.0) return -16.0;
-  return texture2D(uHeight, uv).r*48.0-24.0; }
+  return texture2D(uHeight, uv).r*72.0-28.0; }
 `;
 
 const vert = /* glsl */ `
@@ -127,7 +127,7 @@ void main(){
   float wash = vSurge*lace*(1.0 - smoothstep(0.3, 4.5, depth));
   float big = smoothstep(0.45, 0.75, fbm(q*0.018 + vec2(uTime*0.01, 0.0)));
   float crest = smoothstep(0.7, 1.05, vCrest + n1*0.5 - 0.25) * 0.45 * big * smoothstep(0.6, 1.4, uAmp);
-  float foam = clamp(shore*0.95 + band*0.7 + crest, 0.0, 1.0) * smoothstep(0.28, 0.66, n2 + shore*0.16 + band*0.1);
+  float foam = clamp(shore*1.05 + band*0.78 + crest, 0.0, 1.0) * smoothstep(0.28, 0.66, n2 + shore*0.16 + band*0.1);
   foam = max(foam, wash*0.95);
   col = mix(col, uFoam, foam);
   float alpha = mix(0.42, 0.95, smoothstep(0.0, 5.0, depth));
@@ -153,8 +153,8 @@ export class Water {
       uHeight: { value: o.heightTex },
       uHeightRect: { value: new THREE.Vector3(INNER.min, INNER.min, INNER.size) },
       uSunDir: { value: o.sunDir }, uSunColor: { value: o.sunColor },
-      uDeep: { value: new THREE.Color(0x0a3a4c) }, uShallow: { value: new THREE.Color(0x2fb3a8) },
-      uFoam: { value: new THREE.Color(0xf4f7f5) },
+      uDeep: { value: new THREE.Color(0x083648) }, uShallow: { value: new THREE.Color(0x35c0b4) },
+      uFoam: { value: new THREE.Color(0xf7faf8) },
       uSkyTop: { value: o.skyTop }, uSkyHorizon: { value: o.skyHorizon },
       uFogColor: { value: o.fogColor }, uFogDensity: { value: o.fogDensity },
     };

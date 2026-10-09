@@ -3,7 +3,7 @@
 // +X = east, +Z = north. Simplified pedagogical model inspired by 3d.map.gov.hk — not survey data.
 import { bump, clamp, fbm2, lerp, noise2, smoothstep } from './noise';
 
-export const H = 20; // typical hill / cliff height scale
+export const H = 32; // typical hill / cliff height scale
 /** NE rocky tip axis (海蝕洞→拱→柱 sequence). */
 export const HX = 28;
 /** Primary 海蝕隙 on the north rocky coast. */
@@ -30,10 +30,15 @@ export const phase = (s: number, k: number): number => clamp(s - SEGMENTS[k].d);
 export const caveZ = (k: number): number => SEGMENTS[k].a + 6;
 
 export function headHalfWidth(z: number): number {
-  return lerp(11, 7.5, clamp((z - 86) / 62)) + 1.1 * noise2(z * 0.07, 3.3);
+  // angular plan: facets instead of soft ellipse
+  const facet = 1.4 * Math.abs(noise2(z * 0.09, 3.3)) + 0.7 * noise2(z * 0.18, 8.1);
+  return lerp(12, 7.2, clamp((z - 86) / 62)) + facet;
 }
 export function headTop(x: number, z: number): number {
-  return 16 - 0.04 * Math.max(0, z - 90) + 1.0 * fbm2(x * 0.05 + 3.1, z * 0.05, 3);
+  // taller NE tip with stepped granite top
+  const base = 22 - 0.05 * Math.max(0, z - 90);
+  const step = 1.8 * Math.floor((fbm2(x * 0.04 + 3.1, z * 0.04, 3) + 1) * 1.6) / 3.2;
+  return base + step + 0.6 * noise2(x * 0.12, z * 0.12);
 }
 
 /** Cave/arch geometry for a segment phase p. */
@@ -65,10 +70,10 @@ export function stackGeom(k: number, p: number) {
 }
 
 // ---------- Cheung Chau silhouette (dumbbell) ----------
-/** South hillmass (larger) — 南氹 / south. */
-export const SOUTH = { x: 6, z: -88, rx: 58, rz: 74, peak: 22 };
+/** South hillmass (larger) — 南氹 / south. Tall granite cliffs. */
+export const SOUTH = { x: 6, z: -88, rx: 54, rz: 70, peak: 44 };
 /** North hillmass (smaller) — rocky north tip. */
-export const NORTH = { x: -6, z: 98, rx: 40, rz: 48, peak: 17 };
+export const NORTH = { x: -6, z: 98, rx: 38, rz: 46, peak: 28 };
 /** Tombolo / town neck z-range. */
 export const NECK_Z0 = -22, NECK_Z1 = 48;
 
@@ -78,21 +83,31 @@ function ellDist(x: number, z: number, m: { x: number; z: number; rx: number; rz
 }
 
 /** Soft island occupancy 0…1 — hills + NE tip only (no permanent neck; sand bridge grows with stage). */
+/** Irregular rocky rim offset — breaks the soft ellipse into granite-like inlets. */
+function rimJitter(x: number, z: number): number {
+  return 0.055 * noise2(x * 0.055, z * 0.055)
+    + 0.028 * noise2(x * 0.14 + 3.1, z * 0.14)
+    + 0.016 * Math.abs(noise2(x * 0.32, z * 0.28)); // angular facets
+}
+
 export function islandCore(x: number, z: number): number {
-  const ds = ellDist(x, z, SOUTH);
-  const dn = ellDist(x, z, NORTH);
-  const hills = Math.max(smoothstep(1.08, 0.72, ds), smoothstep(1.08, 0.72, dn));
-  // NE rocky tip bulge for the headland root
-  const tip = smoothstep(1.2, 0.55, Math.hypot((x - HX) / 14, (z - 118) / 28)) * smoothstep(85, 100, z);
+  const j = rimJitter(x, z);
+  const ds = ellDist(x, z, SOUTH) + j;
+  const dn = ellDist(x, z, NORTH) + j * 0.9;
+  // sharper rim: steep falloff near 1.0 instead of soft blob
+  const hills = Math.max(smoothstep(1.02, 0.88, ds), smoothstep(1.02, 0.88, dn));
+  const tip = smoothstep(1.12, 0.62, Math.hypot((x - HX) / 13, (z - 118) / 26) + j * 0.5) * smoothstep(85, 100, z);
   return Math.max(hills, tip);
 }
 
 /** North-facing cliff line (sea to the north / +Z). Retreat moves inland (−Z). */
 export function northCoast0(x: number): number {
-  const u = clamp((x - NORTH.x) / (NORTH.rx * 1.08), -1, 1);
+  const u = clamp((x - NORTH.x) / (NORTH.rx * 1.06), -1, 1);
   let z = NORTH.z + NORTH.rz * Math.sqrt(Math.max(0, 1 - u * u));
-  z += 2.2 * noise2(x * 0.04, 9.1) + 1.1 * noise2(x * 0.12, 2.7);
-  z += 16 * bump(x, HX, 20);
+  // jagged rocky outline + deep inlets (not soft hills)
+  z += 3.4 * noise2(x * 0.05, 9.1) + 2.2 * noise2(x * 0.13, 2.7);
+  z += 1.6 * Math.abs(noise2(x * 0.22, 5.5)) - 2.8 * bump(x, -38, 7) - 2.2 * bump(x, 8, 5.5);
+  z += 16 * bump(x, HX, 18);
   return z;
 }
 export function northCliff(x: number, s: number): number {
@@ -101,9 +116,11 @@ export function northCliff(x: number, s: number): number {
 
 /** South-facing cliff line at 南氹 (sea to the south / −Z). Retreat moves inland (+Z). */
 export function southCoast0(x: number): number {
-  const u = clamp((x - SOUTH.x) / (SOUTH.rx * 1.08), -1, 1);
+  const u = clamp((x - SOUTH.x) / (SOUTH.rx * 1.06), -1, 1);
   let z = SOUTH.z - SOUTH.rz * Math.sqrt(Math.max(0, 1 - u * u));
-  z += 2.0 * noise2(x * 0.035, 4.4) + 1.0 * noise2(x * 0.1, 1.8);
+  // Nam Tam: irregular granite headlands / coves, angular silhouette
+  z += 3.2 * noise2(x * 0.04, 4.4) + 2.0 * noise2(x * 0.11, 1.8);
+  z += 1.8 * Math.abs(noise2(x * 0.2, 7.2)) - 3.5 * bump(x, 22, 9) - 2.4 * bump(x, -18, 7) - 2.0 * bump(x, 48, 6);
   return z;
 }
 export function southCliff(x: number, s: number): number {
@@ -173,10 +190,17 @@ export function staticSample(x: number, z: number, out: Float32Array, o: number)
   out[o + 2] = core;                 // 2 island occupancy
   out[o + 3] = ds;                   // 3 south ell dist
   out[o + 4] = dn;                   // 4 north ell dist
-  // hill heights
-  out[o + 5] = SOUTH.peak * Math.pow(Math.max(0, 1 - ds * 0.92), 1.35) * (0.85 + 0.2 * fbm2(x * 0.02, z * 0.02, 3));
-  out[o + 6] = NORTH.peak * Math.pow(Math.max(0, 1 - dn * 0.92), 1.35) * (0.85 + 0.2 * fbm2(x * 0.025 + 2, z * 0.025, 3));
-  out[o + 7] = 0.22 * noise2(x * 0.22, z * 0.22) + 0.12 * noise2(x * 0.9, z * 0.9); // platform noise
+  // hill heights — high plateau held almost to the cliff rim, then drops
+  const sj = rimJitter(x, z);
+  const dsJ = ds + sj * 0.3, dnJ = dn + sj * 0.25;
+  // keep ~70%+ of peak near the coast so the cliff face can soar
+  const sPlateau = Math.pow(Math.max(0, 1 - dsJ * 0.58), 0.35);
+  const nPlateau = Math.pow(Math.max(0, 1 - dnJ * 0.58), 0.35);
+  const sFacet = 0.7 * Math.abs(noise2(x * 0.07, z * 0.07)) + 0.45 * Math.abs(noise2(x * 0.19, z * 0.17));
+  const nFacet = 0.55 * Math.abs(noise2(x * 0.08 + 2, z * 0.08)) + 0.35 * Math.abs(noise2(x * 0.2, z * 0.19));
+  out[o + 5] = SOUTH.peak * sPlateau * (0.92 + 0.1 * fbm2(x * 0.016, z * 0.016, 3)) + sFacet * 1.6;
+  out[o + 6] = NORTH.peak * nPlateau * (0.92 + 0.1 * fbm2(x * 0.02 + 2, z * 0.02, 3)) + nFacet * 1.2;
+  out[o + 7] = 0.16 * noise2(x * 0.3, z * 0.3) + 0.09 * noise2(x * 1.2, z * 1.2);
   out[o + 8] = geoX(z);              // 8 geo joint x
   out[o + 9] = 0.15 * noise2(x * 0.3, z * 0.3); // beach noise
   out[o + 10] = headTop(x, z);       // 10 headland top cache
@@ -222,47 +246,53 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
   let h = seabed;
   let m = MAT_SEABED;
 
-  // --- south hillmass (南氹): flat platform → notch setback → steep cliff face ---
-  if (ds < 1.28) {
+  // --- south hillmass (南氹): flat platform → notch → tall near-vertical cliff ---
+  if (ds < 1.32) {
     const inland = z - sCl; // >0 = inland of south cliff
-    const platW = (sCoast - sCl) + 16 + 18 * s;
+    const platW = (sCoast - sCl) + 18 + 20 * s;
     if (inland <= 0) {
-      // wide, flat wave-cut platform apron (教學用：比真實更平、更闊)
+      // wide, flat wave-cut platform apron
       const dz = -inland;
-      const hPlat = 0.18 - 0.012 * dz + 0.22 * S[o + 7];
-      const pEdge = smoothstep(platW * 0.92, platW + 14, dz);
+      const hPlat = 0.22 - 0.01 * dz + 0.2 * S[o + 7];
+      const pEdge = smoothstep(platW * 0.9, platW + 16, dz);
       const hp = lerp(hPlat, seabed, pEdge);
       if (hp > h) { h = hp; m = pEdge < 0.5 && hp > -1.0 ? MAT_PLAT : MAT_SEABED; }
     } else {
-      // notch ledge (浪蝕凹壁) then abrupt soar to hilltop
-      const notchW = 3.2 + 1.4 * s;
-      const notchH = 1.05 + 0.28 * S[o + 7];
-      const notch = notchH * smoothstep(-0.15, 0.7, inland) * smoothstep(notchW + 1.4, notchW - 0.4, inland);
-      const face = S[o + 5] * Math.pow(smoothstep(notchW * 0.45, notchW + 4.2, inland), 0.9);
-      const hill = S[o + 5] * smoothstep(2, 12, inland);
-      const landH = Math.max(notch, face, hill);
+      // notch then near-vertical wall (most height within ~1 m)
+      const notchW = 2.0 + 0.9 * s;
+      const notchH = 1.35 + 0.2 * S[o + 7];
+      const notch = notchH * smoothstep(-0.05, 0.4, inland) * smoothstep(notchW + 0.85, notchW - 0.25, inland);
+      const rise = Math.pow(smoothstep(notchW * 0.08, notchW + 0.85, inland), 0.25);
+      // buttresses / joints on the wall only — fade before the flat rim so the crest stays sharp
+      const pillar = 0.55 + 0.45 * Math.abs(Math.sin(x * 0.48 + noise2(x * 0.07, 2.2) * 2.2));
+      const wallMod = 0.78 + 0.32 * pillar * (1 - rise);
+      const face = S[o + 5] * rise * wallMod;
+      // bedding step mid-face
+      const mid = S[o + 5] * 0.42;
+      const step = mid * smoothstep(notchW + 0.05, notchW + 0.55, inland)
+        + (S[o + 5] - mid) * Math.pow(smoothstep(notchW + 0.45, notchW + 0.9, inland), 0.3);
+      const hill = S[o + 5] * smoothstep(0.5, 3.8, inland);
+      // joint grooves cut the wall, not the plateau top
+      const groove = Math.max(0, 0.5 - Math.abs(Math.sin(x * 0.35)) * 1.05)
+        * smoothstep(0.3, 2.2, inland) * (1 - smoothstep(2.5, 5.5, inland));
+      const landH = Math.max(notch, face, step, hill) - groove * 5.5 * smoothstep(0, 0.3, s + 0.25);
       if (landH > h) { h = landH; m = MAT_LAND; }
-      // keep a thin platform lip seaward even when inland slightly positive (notched undercut feel via ledge)
-      if (inland < 1.2) {
-        const lip = 0.16 + 0.15 * S[o + 7];
-        if (lip > h * 0.4 && lip > h - 0.5) { /* ledge already set by notch */ }
-      }
     }
   }
 
-  // --- north hillmass ---
-  if (dn < 1.25) {
+  // --- north hillmass: steeper rocky cliffs + short platforms ---
+  if (dn < 1.28) {
     const inland = nCl - z; // >0 = inland of north cliff
     if (inland > 0) {
-      const hill = S[o + 6] * smoothstep(0, 7, inland);
-      const cliffFace = S[o + 6] * 0.5 * smoothstep(-0.5, 2.2, inland);
+      const hill = S[o + 6] * smoothstep(0.3, 5, inland);
+      const cliffFace = S[o + 6] * Math.pow(smoothstep(-0.15, 1.15, inland), 0.32);
       const landH = Math.max(hill, cliffFace);
       if (landH > h) { h = landH; m = MAT_LAND; }
     } else {
       const dz = -inland;
-      const platW = (nCoast - nCl) + 5 + 6 * s;
-      const hPlat = 0.02 - 0.045 * dz + 0.6 * S[o + 7];
-      const pEdge = smoothstep(platW, platW + 10, dz);
+      const platW = (nCoast - nCl) + 6 + 7 * s;
+      const hPlat = 0.05 - 0.035 * dz + 0.45 * S[o + 7];
+      const pEdge = smoothstep(platW, platW + 11, dz);
       const hp = lerp(hPlat, seabed, pEdge);
       if (hp > h) { h = hp; m = pEdge < 0.55 && hp > -1.2 ? MAT_PLAT : MAT_SEABED; }
     }
