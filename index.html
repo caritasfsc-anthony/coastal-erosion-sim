@@ -122,14 +122,18 @@
           <div class="tl-ticks"><span>初期 · 兩島分開</span><span>中期 · 洞拱與水下沙洲</span><span>後期 · 連島沙洲成形</span></div>
         </div>
         <div class="tl-wave">
-          <label for="wave-dir">海浪方向 <b id="wave-dir-lbl">南</b></label>
-          <div class="wave-compass" id="wave-compass" title="拖動改變浪向">
-            <div class="wc-ring">
-              <span class="wc-n">N</span><span class="wc-e">E</span><span class="wc-s">S</span><span class="wc-w">W</span>
-              <div class="wc-needle" id="wave-needle"></div>
-            </div>
+          <label>海浪方向 <b id="wave-dir-lbl">南</b></label>
+          <div class="wave-pad" id="wave-pad" role="group" aria-label="海浪八方位">
+            <button type="button" class="wd" data-deg="315" title="西北">西北</button>
+            <button type="button" class="wd" data-deg="0" title="北">北</button>
+            <button type="button" class="wd" data-deg="45" title="東北">東北</button>
+            <button type="button" class="wd" data-deg="270" title="西">西</button>
+            <div class="wd-center" aria-hidden="true"><span id="wave-needle-dot"></span></div>
+            <button type="button" class="wd" data-deg="90" title="東">東</button>
+            <button type="button" class="wd" data-deg="225" title="西南">西南</button>
+            <button type="button" class="wd active" data-deg="180" title="南">南</button>
+            <button type="button" class="wd" data-deg="135" title="東南">東南</button>
           </div>
-          <input type="range" id="wave-dir" min="0" max="360" value="180" aria-label="海浪方向" />
           <span class="wave-hint" id="wave-hint">浪從南方來 · 南氹受蝕較強</span>
         </div>
         <div class="tl-energy">
@@ -139,9 +143,16 @@
         </div>
       </footer>
 
+      <aside id="minimap" class="glass" title="點擊切換俯視">
+        <div class="mm-head"><span>俯視圖</span><small>Top view</small></div>
+        <canvas id="minimap-cv" width="200" height="260"></canvas>
+        <div class="mm-legend"><i class="mm-rock"></i>岩岸 <i class="mm-sand"></i>沙洲／海灘 <i class="mm-wave"></i>浪向</div>
+        <button type="button" id="mm-top" class="ghost">俯視場景</button>
+      </aside>
+
       <div id="play-tip" class="glass" aria-live="polite">
         <b>試吓轉浪向</b>
-        <span>拖動指南針或滑桿，即時睇邊岸浪花多、沙洲偏向邊邊</span>
+        <span>撳八個方位掣，即時睇邊岸浪花多、沙洲偏向邊邊</span>
         <button type="button" id="tip-dismiss" class="ghost">知道了</button>
       </div>
       <div id="mini-goal" class="glass">

@@ -10,8 +10,8 @@ export interface StoryStep {
 
 /** High oblique overview — two islands early / dumbbell late. */
 export const OVERVIEW = {
-  pos: [160, 130, 40] as [number, number, number],
-  target: [0, 0, 0] as [number, number, number],
+  pos: [175, 145, 55] as [number, number, number],
+  target: [0, 2, -10] as [number, number, number],
 };
 
 export const STORY: StoryStep[] = [
@@ -22,7 +22,7 @@ export const STORY: StoryStep[] = [
   },
   {
     title: '海浪的力量',
-    text: '破壞性海浪以「水力作用」把空氣壓入岩石裂縫，又以「磨蝕作用」挾帶砂石撞擊岩岸。留意浪花、濕潤岩面和「浪擊點」。試試右下角的「海浪方向」——轉一轉，看看邊岸受浪最猛。',
+    text: '破壞性海浪以「水力作用」把空氣壓入岩石裂縫，又以「磨蝕作用」挾帶砂石撞擊岩岸。留意浪花、濕潤岩面和「浪擊點」。試試右下角八個方位掣，揀定浪向，睇邊岸受浪最猛。',
     stage: 0.08, view: { pos: [70, 28, -160], target: [20, 4, -90] },
   },
   {
@@ -52,7 +52,7 @@ export const STORY: StoryStep[] = [
   },
   {
     title: '東灣海灘',
-    text: '沙洲東側逐漸出現灣頭沉積。建設性海浪把沙推上東灣，新月形海灘變闊。轉一轉浪向，沙灘位置會偏向背浪一側。',
+    text: '沙洲東側逐漸出現灣頭沉積。建設性海浪把沙推上東灣，新月形海灘變闊。撳方位掣轉浪向，沙灘位置會偏向背浪一側。',
     stage: 0.65, focus: 'beach',
   },
   {
@@ -67,7 +67,7 @@ export const STORY: StoryStep[] = [
   },
   {
     title: '連島沙洲露出：啞鈴成形',
-    text: '水下沙洲不斷增高，終於露出水面，把南北兩島連成一體——長洲著名的啞鈴形「腰」誕生了。東側是東灣海灘。試吓轉浪向，睇沙洲偏向邊邊！',
+    text: '水下沙洲不斷增高，終於露出水面，把南北兩島連成一體——長洲著名的啞鈴形「腰」誕生了。東側是東灣海灘。撳八方位掣轉浪向，睇沙洲偏向邊邊！右上角俯視圖亦可同步睇變化。',
     stage: 0.92, focus: 'tombolo',
   },
   {
@@ -77,7 +77,7 @@ export const STORY: StoryStep[] = [
   },
   {
     title: '總結：玩轉浪向與時間',
-    text: '岩岸受蝕留下崖、隙、洞、拱、柱與平台；侵蝕物料在兩島之間沉積成連島沙洲與海灘。拖時間軸、轉海浪方向、再挑戰模式考考自己——好玩嘅地理實驗，開始！',
+    text: '岩岸受蝕留下崖、隙、洞、拱、柱與平台；侵蝕物料在兩島之間沉積成連島沙洲與海灘。拖時間軸、撳八方位浪向、用右上角俯視圖睇變化，再挑戰模式考考自己——好玩嘅地理實驗，開始！',
     stage: 1, view: OVERVIEW,
   },
 ];

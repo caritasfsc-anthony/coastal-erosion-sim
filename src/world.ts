@@ -70,61 +70,142 @@ export function stackGeom(k: number, p: number) {
 }
 
 // ---------- Cheung Chau silhouette (dumbbell) ----------
-/** South hillmass (larger) — 南氹 / south. Tall granite cliffs. */
-export const SOUTH = { x: 6, z: -88, rx: 54, rz: 70, peak: 44 };
-/** North hillmass (smaller) — rocky north tip. */
-export const NORTH = { x: -6, z: 98, rx: 38, rz: 46, peak: 28 };
-/** Tombolo / town neck z-range. */
-export const NECK_Z0 = -22, NECK_Z1 = 48;
+// Plan rings match the real island’s elongated N–S dumbbell (not soft cylinders).
+// Coordinates: +X east, +Z north. Rings are closed CCW. Early stage = two separate islands.
 
-/** Elliptical radial distance to a hillmass (1 = rim). */
-function ellDist(x: number, z: number, m: { x: number; z: number; rx: number; rz: number }): number {
-  return Math.hypot((x - m.x) / m.rx, (z - m.z) / m.rz);
+/** South hillmass (larger) — 南氹 / south. Tall granite cliffs. */
+export const SOUTH = { x: 4, z: -92, rx: 58, rz: 78, peak: 44 };
+/** North hillmass (smaller) — rocky north tip. */
+export const NORTH = { x: -4, z: 102, rx: 42, rz: 52, peak: 28 };
+/** Tombolo / town neck z-range (open water early; sand bridge later). */
+export const NECK_Z0 = -18, NECK_Z1 = 48;
+
+/**
+ * Irregular rocky outline of the southern mass (plan view).
+ * Elongated N–S with coves & headlands — inspired by 3d.map.gov.hk Cheung Chau.
+ */
+export const SOUTH_RING: [number, number][] = [
+  // neck-facing north — narrow waist (tombolo attaches here)
+  [-10, -16], [0, -10], [12, -14], [20, -22],
+  // SE rocky headlands / deep coves (not a smooth oval)
+  [26, -36], [18, -48], [34, -54], [46, -48], [54, -62], [42, -74],
+  [58, -82], [64, -96], [50, -108], [60, -118], [44, -128], [52, -142],
+  [34, -150], [18, -164], [4, -172], [-12, -166], [-24, -154],
+  // SW granite: indented coves
+  [-18, -140], [-34, -146], [-46, -134], [-36, -120], [-54, -112],
+  [-48, -96], [-60, -84], [-44, -76], [-58, -64], [-50, -50],
+  [-62, -40], [-48, -30], [-34, -24], [-22, -16],
+];
+/**
+ * Irregular rocky outline of the northern mass (plan view).
+ * Smaller elongated mass with jagged tip — gap to south stays open until tombolo.
+ */
+export const NORTH_RING: [number, number][] = [
+  // neck-facing south — narrow waist
+  [-14, 48], [-2, 44], [10, 48], [18, 56],
+  // east lobe toward NE teaching tip (asymmetric)
+  [22, 68], [14, 78], [28, 86], [38, 80], [46, 92], [36, 104],
+  [48, 116], [40, 130], [28, 142], [14, 154], [0, 160],
+  // north tip jagged / clefts
+  [-12, 156], [-24, 146], [-18, 132], [-32, 124], [-42, 112],
+  // west rocky shore
+  [-34, 98], [-48, 90], [-40, 76], [-54, 66], [-42, 56], [-26, 50], [-16, 48],
+];
+
+/** Signed distance to closed ring (negative = inside). */
+export function polySDF(x: number, z: number, ring: [number, number][]): number {
+  let d2 = 1e20, inside = false;
+  const n = ring.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = ring[i][0], zi = ring[i][1], xj = ring[j][0], zj = ring[j][1];
+    // ray cast for winding
+    if (((zi > z) !== (zj > z)) && (x < ((xj - xi) * (z - zi)) / (zj - zi + 1e-12) + xi)) inside = !inside;
+    // distance to segment
+    const ex = xj - xi, ez = zj - zi;
+    const wx = x - xi, wz = z - zi;
+    const t = clamp((wx * ex + wz * ez) / (ex * ex + ez * ez + 1e-12));
+    const dx = wx - ex * t, dz = wz - ez * t;
+    d2 = Math.min(d2, dx * dx + dz * dz);
+  }
+  return (inside ? -1 : 1) * Math.sqrt(d2);
+}
+
+/** Analogous to old ellDist: 1 ≈ rim, <1 inland, >1 offshore. */
+function massDist(x: number, z: number, ring: [number, number][], apron: number): number {
+  return 1 + polySDF(x, z, ring) / apron;
+}
+
+/** Extreme Z of ring along a vertical line x=const (for coast traces). */
+function coastAtX(ring: [number, number][], x: number, wantMax: boolean): number | null {
+  let best = wantMax ? -1e9 : 1e9;
+  let found = false;
+  const n = ring.length;
+  for (let i = 0; i < n; i++) {
+    const x0 = ring[i][0], z0 = ring[i][1];
+    const x1 = ring[(i + 1) % n][0], z1 = ring[(i + 1) % n][1];
+    if ((x0 - x) * (x1 - x) > 0) continue; // same side
+    if (Math.abs(x1 - x0) < 1e-6) continue;
+    const t = (x - x0) / (x1 - x0);
+    if (t < -0.02 || t > 1.02) continue;
+    const zz = z0 + t * (z1 - z0);
+    found = true;
+    best = wantMax ? Math.max(best, zz) : Math.min(best, zz);
+  }
+  return found ? best : null;
 }
 
 /** Soft island occupancy 0…1 — hills + NE tip only (no permanent neck; sand bridge grows with stage). */
-/** Irregular rocky rim offset — breaks the soft ellipse into granite-like inlets. */
 function rimJitter(x: number, z: number): number {
-  return 0.055 * noise2(x * 0.055, z * 0.055)
-    + 0.028 * noise2(x * 0.14 + 3.1, z * 0.14)
-    + 0.016 * Math.abs(noise2(x * 0.32, z * 0.28)); // angular facets
+  return 0.05 * noise2(x * 0.05, z * 0.05)
+    + 0.035 * noise2(x * 0.12 + 3.1, z * 0.12)
+    + 0.022 * Math.abs(noise2(x * 0.28, z * 0.26))
+    + 0.012 * Math.abs(noise2(x * 0.55, z * 0.5));
 }
 
 export function islandCore(x: number, z: number): number {
   const j = rimJitter(x, z);
-  const ds = ellDist(x, z, SOUTH) + j;
-  const dn = ellDist(x, z, NORTH) + j * 0.9;
-  // sharper rim: steep falloff near 1.0 instead of soft blob
-  const hills = Math.max(smoothstep(1.02, 0.88, ds), smoothstep(1.02, 0.88, dn));
-  const tip = smoothstep(1.12, 0.62, Math.hypot((x - HX) / 13, (z - 118) / 26) + j * 0.5) * smoothstep(85, 100, z);
+  const ds = massDist(x, z, SOUTH_RING, 11) + j;
+  const dn = massDist(x, z, NORTH_RING, 10) + j * 0.9;
+  // hard rim following irregular ring (not soft ellipse blob)
+  const hills = Math.max(smoothstep(1.03, 0.94, ds), smoothstep(1.03, 0.94, dn));
+  const tip = smoothstep(1.1, 0.58, Math.hypot((x - HX) / 12, (z - 122) / 24) + j * 0.5) * smoothstep(88, 102, z);
   return Math.max(hills, tip);
 }
 
 /** North-facing cliff line (sea to the north / +Z). Retreat moves inland (−Z). */
 export function northCoast0(x: number): number {
-  const u = clamp((x - NORTH.x) / (NORTH.rx * 1.06), -1, 1);
-  let z = NORTH.z + NORTH.rz * Math.sqrt(Math.max(0, 1 - u * u));
-  // jagged rocky outline + deep inlets (not soft hills)
-  z += 3.4 * noise2(x * 0.05, 9.1) + 2.2 * noise2(x * 0.13, 2.7);
-  z += 1.6 * Math.abs(noise2(x * 0.22, 5.5)) - 2.8 * bump(x, -38, 7) - 2.2 * bump(x, 8, 5.5);
-  z += 16 * bump(x, HX, 18);
+  const base = coastAtX(NORTH_RING, x, true);
+  if (base === null) {
+    // outside north mass footprint — fall back gently
+    const u = clamp((x - NORTH.x) / (NORTH.rx * 1.15), -1, 1);
+    return NORTH.z + NORTH.rz * 0.55 * Math.sqrt(Math.max(0, 1 - u * u));
+  }
+  let z = base;
+  // jagged rocky outline + deep inlets
+  z += 2.8 * noise2(x * 0.055, 9.1) + 1.8 * noise2(x * 0.14, 2.7);
+  z += 1.4 * Math.abs(noise2(x * 0.24, 5.5)) - 2.6 * bump(x, -38, 7) - 2.0 * bump(x, 8, 5.5);
+  z += 14 * bump(x, HX, 18); // NE tip bulge
   return z;
 }
 export function northCliff(x: number, s: number): number {
-  return northCoast0(x) - retreat(s) * (0.55 + 0.45 * smoothstep(-50, 40, x)); // more retreat on exposed east-north
+  return northCoast0(x) - retreat(s) * (0.55 + 0.45 * smoothstep(-50, 40, x));
 }
 
 /** South-facing cliff line at 南氹 (sea to the south / −Z). Retreat moves inland (+Z). */
 export function southCoast0(x: number): number {
-  const u = clamp((x - SOUTH.x) / (SOUTH.rx * 1.06), -1, 1);
-  let z = SOUTH.z - SOUTH.rz * Math.sqrt(Math.max(0, 1 - u * u));
-  // Nam Tam: irregular granite headlands / coves, angular silhouette
-  z += 3.2 * noise2(x * 0.04, 4.4) + 2.0 * noise2(x * 0.11, 1.8);
-  z += 1.8 * Math.abs(noise2(x * 0.2, 7.2)) - 3.5 * bump(x, 22, 9) - 2.4 * bump(x, -18, 7) - 2.0 * bump(x, 48, 6);
+  const base = coastAtX(SOUTH_RING, x, false);
+  if (base === null) {
+    const u = clamp((x - SOUTH.x) / (SOUTH.rx * 1.15), -1, 1);
+    return SOUTH.z - SOUTH.rz * 0.55 * Math.sqrt(Math.max(0, 1 - u * u));
+  }
+  let z = base;
+  // Nam Tam: irregular granite headlands / coves
+  z += 2.6 * noise2(x * 0.045, 4.4) + 1.7 * noise2(x * 0.12, 1.8);
+  z += 1.5 * Math.abs(noise2(x * 0.22, 7.2)) - 3.2 * bump(x, 22, 9) - 2.2 * bump(x, -18, 7) - 1.8 * bump(x, 48, 6);
   return z;
 }
 export function southCliff(x: number, s: number): number {
-  return southCoast0(x) + retreat(s) * (0.7 + 0.3 * bump(x, 20, 50)); // Nam Tam / SE more active
+  return southCoast0(x) + retreat(s) * (0.7 + 0.3 * bump(x, 20, 50));
 }
 
 /** Legacy helpers used by debris / splash on the southern teaching cliff (南氹). */
@@ -182,24 +263,34 @@ export interface Sample { h: number; m: number; raw?: number; rawM?: number; }
 
 export const STATIC_FIELDS = 16;
 export function staticSample(x: number, z: number, out: Float32Array, o: number) {
-  const ds = ellDist(x, z, SOUTH);
-  const dn = ellDist(x, z, NORTH);
+  const ds = massDist(x, z, SOUTH_RING, 11);
+  const dn = massDist(x, z, NORTH_RING, 10);
   const core = islandCore(x, z);
   out[o] = southCoast0(x);           // 0 south coast0
   out[o + 1] = northCoast0(x);       // 1 north coast0
   out[o + 2] = core;                 // 2 island occupancy
-  out[o + 3] = ds;                   // 3 south ell dist
-  out[o + 4] = dn;                   // 4 north ell dist
-  // hill heights — high plateau held almost to the cliff rim, then drops
-  const sj = rimJitter(x, z);
-  const dsJ = ds + sj * 0.3, dnJ = dn + sj * 0.25;
-  // keep ~70%+ of peak near the coast so the cliff face can soar
-  const sPlateau = Math.pow(Math.max(0, 1 - dsJ * 0.58), 0.35);
-  const nPlateau = Math.pow(Math.max(0, 1 - dnJ * 0.58), 0.35);
-  const sFacet = 0.7 * Math.abs(noise2(x * 0.07, z * 0.07)) + 0.45 * Math.abs(noise2(x * 0.19, z * 0.17));
-  const nFacet = 0.55 * Math.abs(noise2(x * 0.08 + 2, z * 0.08)) + 0.35 * Math.abs(noise2(x * 0.2, z * 0.19));
-  out[o + 5] = SOUTH.peak * sPlateau * (0.92 + 0.1 * fbm2(x * 0.016, z * 0.016, 3)) + sFacet * 1.6;
-  out[o + 6] = NORTH.peak * nPlateau * (0.92 + 0.1 * fbm2(x * 0.02 + 2, z * 0.02, 3)) + nFacet * 1.2;
+  out[o + 3] = ds;                   // 3 south mass dist (1=rim)
+  out[o + 4] = dn;                   // 4 north mass dist (1=rim)
+  // hill heights from inland distance to irregular rim (plateau held to cliff)
+  const sIn = Math.max(0, -polySDF(x, z, SOUTH_RING));
+  const nIn = Math.max(0, -polySDF(x, z, NORTH_RING));
+  // Dome from rim (higher exponent = rounded hills, not flat cylinder lids).
+  // Extra lift near the southern outer coast so 南氹 cliff can still soar.
+  const sNearNeck = smoothstep(-42, -16, z) * smoothstep(8, -10, z);
+  const nNearNeck = smoothstep(38, 56, z) * smoothstep(72, 46, z);
+  const sSouthRim = smoothstep(-40, -120, z); // toward Nam Tam tip
+  const sPlateau = Math.pow(smoothstep(2.2 + 5 * sNearNeck, 26 - 8 * sNearNeck, sIn), 0.62 + 0.2 * sNearNeck);
+  const nPlateau = Math.pow(smoothstep(2.0 + 4 * nNearNeck, 22 - 6 * nNearNeck, nIn), 0.62 + 0.2 * nNearNeck);
+  const sCliffLift = (0.55 + 0.45 * sSouthRim) * Math.pow(smoothstep(0.8, 7, sIn), 0.35) * (1 - 0.7 * sNearNeck);
+  const nCliffLift = 0.35 * Math.pow(smoothstep(0.8, 6, nIn), 0.4) * (1 - 0.7 * nNearNeck);
+  const sFacet = 1.1 * Math.abs(noise2(x * 0.055, z * 0.055)) + 0.7 * Math.abs(noise2(x * 0.16, z * 0.14));
+  const nFacet = 0.9 * Math.abs(noise2(x * 0.06 + 2, z * 0.06)) + 0.55 * Math.abs(noise2(x * 0.17, z * 0.16));
+  const sRidge = 0.7 + 0.3 * smoothstep(0.1, 0.9, Math.abs(Math.sin((z - SOUTH.z) * 0.026 + 0.45 * noise2(x * 0.028, 1))))
+    * (1 - 0.4 * sNearNeck);
+  const nRidge = 0.72 + 0.28 * smoothstep(0.1, 0.9, Math.abs(Math.sin((z - NORTH.z) * 0.03 + 0.4 * noise2(x * 0.03, 2))))
+    * (1 - 0.4 * nNearNeck);
+  out[o + 5] = SOUTH.peak * Math.max(sPlateau * sRidge, sCliffLift) * (0.88 + 0.14 * fbm2(x * 0.018, z * 0.018, 3)) + sFacet * 2.4;
+  out[o + 6] = NORTH.peak * Math.max(nPlateau * nRidge, nCliffLift) * (0.88 + 0.14 * fbm2(x * 0.02 + 2, z * 0.02, 3)) + nFacet * 1.8;
   out[o + 7] = 0.16 * noise2(x * 0.3, z * 0.3) + 0.09 * noise2(x * 1.2, z * 1.2);
   out[o + 8] = geoX(z);              // 8 geo joint x
   out[o + 9] = 0.15 * noise2(x * 0.3, z * 0.3); // beach noise
@@ -247,7 +338,7 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
   let m = MAT_SEABED;
 
   // --- south hillmass (南氹): flat platform → notch → tall near-vertical cliff ---
-  if (ds < 1.32) {
+  if (ds < 1.22) {
     const inland = z - sCl; // >0 = inland of south cliff
     const platW = (sCoast - sCl) + 18 + 20 * s;
     if (inland <= 0) {
@@ -280,12 +371,12 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
     }
   }
 
-  // --- north hillmass: steeper rocky cliffs + short platforms ---
-  if (dn < 1.28) {
+  // --- north hillmass: rocky hills + short platforms (less cylinder, more ridge) ---
+  if (dn < 1.2) {
     const inland = nCl - z; // >0 = inland of north cliff
     if (inland > 0) {
-      const hill = S[o + 6] * smoothstep(0.3, 5, inland);
-      const cliffFace = S[o + 6] * Math.pow(smoothstep(-0.15, 1.15, inland), 0.32);
+      const hill = S[o + 6] * smoothstep(0.6, 9, inland);
+      const cliffFace = S[o + 6] * Math.pow(smoothstep(-0.1, 2.4, inland), 0.45);
       const landH = Math.max(hill, cliffFace);
       if (landH > h) { h = landH; m = MAT_LAND; }
     } else {
@@ -386,7 +477,7 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
   // --- SE rocky platform apron around Mantou (flat teaching apron) ---
   if (x > 32 && x < 82 && z > -115 && z < -48) {
     const plat = 0.22 - 0.01 * Math.max(0, -(z + 68)) + 0.2 * S[o + 7]
-      - 7 * smoothstep(0.35, 1.05, ellDist(x, z, { x: 50, z: -75, rx: 30, rz: 24 }));
+      - 7 * smoothstep(0.35, 1.05, Math.hypot((x - 50) / 30, (z + 75) / 24));
     if (plat > h && plat > -1.3) { h = plat; m = plat > -0.85 ? MAT_PLAT : MAT_SEABED; }
   }
 
@@ -406,4 +497,30 @@ const _smp: Sample = { h: 0, m: 0 };
 export function groundRaw(x: number, z: number, K: StageConsts): number {
   staticSample(x, z, _gs, 0);
   return terrainSample(x, z, _gs, 0, K, _smp).raw!;
+}
+
+/** Plan-view land/sand occupancy for the top-view minimap (0=water, 1=rock, 2=sand). */
+export function planCell(x: number, z: number, s: number, waveDir = 180): number {
+  const core = islandCore(x, z);
+  if (core > 0.45) return 1;
+  const tip = Math.hypot((x - HX) / 14, (z - 118) / 28);
+  if (tip < 1.05 && z > 85) return 1;
+  const K = stageConsts(s, waveDir);
+  const t = (z - NECK_Z0 + K.leeZ * 8) / (NECK_Z1 - NECK_Z0);
+  const sandGate = smoothstep(-3.8, -0.4, K.crest);
+  if (t > -0.12 && t < 1.12 && sandGate > 0.08) {
+    const tc = clamp(t);
+    const cx = TOMB_X + 3 * Math.sin(Math.PI * tc) + K.leeX * 10 * sandGate;
+    const hw = (7 + 10 * sandGate) + 9 * Math.pow(Math.abs(2 * tc - 1), 2.4);
+    const dx = (x - cx) / Math.max(3, hw);
+    if (Math.abs(dx) < 1.05 && K.crest > -2.2) return 2;
+  }
+  if (t > 0.08 && t < 0.92 && K.wb > 4) {
+    const tc = clamp(t);
+    const beachR = K.wb * (0.85 + 0.25 * Math.sin(Math.PI * tc));
+    const shoreX = TOMB_X + 8 + 6 * Math.pow(Math.abs(2 * tc - 1), 1.8) + K.leeX * 7;
+    const dx = x - shoreX;
+    if (dx > -2 && dx < beachR + 6 && s > 0.3) return 2;
+  }
+  return 0;
 }

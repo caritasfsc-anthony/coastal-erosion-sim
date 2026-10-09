@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { createWorld } from './scene';
 import { LANDFORMS, PROCESSES, SEQUENCE, byId, geoFrame, landformState, type LandformId } from './landforms';
 import { OVERVIEW, STORY } from './story';
-import { GX, HX, MANTOU, SEGMENTS, caveZ, geoHalfWidth, geoParams, geoX, groundRaw, headHalfWidth, northCliff, phase, southCliff, southCoast0, stackGeom, stageConsts, waveTravel } from './world';
+import { GX, HX, MANTOU, SEGMENTS, caveZ, geoHalfWidth, geoParams, geoX, groundRaw, headHalfWidth, northCliff, phase, planCell, southCliff, southCoast0, stackGeom, stageConsts, waveTravel } from './world';
 import { clamp } from './noise';
 import { activeStrike, strikeFor, type Strike } from './waveWork';
 import { wetUniforms } from './wet';
@@ -59,6 +59,8 @@ const app = {
   waveDir: 180,
 };
 
+let dirtyMinimap = true;
+
 let lastStageVal = 0, lastStageChange = -1e9;
 
 // ------------------------------------------------------------------ stage tween
@@ -79,6 +81,7 @@ function setStage(s: number) {
   const years = Math.round((app.stage * 8000) / 100) * 100;
   $('stage-years').textContent = `經過約 ${years.toLocaleString('zh-HK')} 年（示意）`;
   if (typeof checkMiniGoal === 'function') checkMiniGoal();
+  dirtyMinimap = true;
 }
 
 // ------------------------------------------------------------------ camera tween
@@ -577,6 +580,70 @@ function geoGuideWanted(now: number): boolean {
   return app.selected === 'geo' || (watch !== null && watch.id === 'geo' && now < watch.until);
 }
 
+// ------------------------------------------------------------------ top-view minimap (右上角)
+const mmCv = $('minimap-cv') as HTMLCanvasElement;
+const mmCtx = mmCv.getContext('2d')!;
+let lastMmStage = -1, lastMmWd = -1;
+const MM_WORLD = { x0: -90, z0: -180, x1: 90, z1: 170 };
+function worldToMm(x: number, z: number): [number, number] {
+  const u = (x - MM_WORLD.x0) / (MM_WORLD.x1 - MM_WORLD.x0);
+  const v = (MM_WORLD.z1 - z) / (MM_WORLD.z1 - MM_WORLD.z0);
+  return [u * mmCv.width, v * mmCv.height];
+}
+function drawMinimap() {
+  const s = app.built, wd = app.waveDir;
+  if (!dirtyMinimap && Math.abs(s - lastMmStage) < 0.01 && wd === lastMmWd) return;
+  dirtyMinimap = false; lastMmStage = s; lastMmWd = wd;
+  const W = mmCv.width, H = mmCv.height;
+  const img = mmCtx.createImageData(W, H);
+  const data = img.data;
+  const step = 2;
+  for (let py = 0; py < H; py += step) {
+    const z = MM_WORLD.z1 - (py / (H - 1)) * (MM_WORLD.z1 - MM_WORLD.z0);
+    for (let px = 0; px < W; px += step) {
+      const x = MM_WORLD.x0 + (px / (W - 1)) * (MM_WORLD.x1 - MM_WORLD.x0);
+      const cell = planCell(x, z, s, wd);
+      let r = 8, g = 42, b = 68;
+      if (cell === 1) { r = 196; g = 165; b = 116; }
+      else if (cell === 2) { r = 232; g = 213; b = 163; }
+      for (let dy = 0; dy < step && py + dy < H; dy++) {
+        for (let dx = 0; dx < step && px + dx < W; dx++) {
+          const i = ((py + dy) * W + (px + dx)) * 4;
+          data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 255;
+        }
+      }
+    }
+  }
+  mmCtx.putImageData(img, 0, 0);
+  mmCtx.strokeStyle = 'rgba(94,234,212,0.35)';
+  mmCtx.lineWidth = 2;
+  mmCtx.strokeRect(1, 1, W - 2, H - 2);
+  const [cx, cy] = worldToMm(0, 10);
+  const rad = ((wd + 180) * Math.PI) / 180;
+  const len = 28;
+  const ax = cx + Math.sin(rad) * len, ay = cy - Math.cos(rad) * len;
+  const bx = cx - Math.sin(rad) * len * 0.55, by = cy + Math.cos(rad) * len * 0.55;
+  mmCtx.strokeStyle = '#5eead4';
+  mmCtx.fillStyle = '#5eead4';
+  mmCtx.lineWidth = 2.5;
+  mmCtx.beginPath(); mmCtx.moveTo(bx, by); mmCtx.lineTo(ax, ay); mmCtx.stroke();
+  const hx = Math.sin(rad), hy = -Math.cos(rad);
+  mmCtx.beginPath();
+  mmCtx.moveTo(ax, ay);
+  mmCtx.lineTo(ax - hx * 10 - hy * 5, ay - hy * 10 + hx * 5);
+  mmCtx.lineTo(ax - hx * 10 + hy * 5, ay - hy * 10 - hx * 5);
+  mmCtx.closePath(); mmCtx.fill();
+  mmCtx.fillStyle = 'rgba(94,234,212,0.85)';
+  mmCtx.font = 'bold 11px system-ui,sans-serif';
+  mmCtx.fillText('N', W / 2 - 4, 14);
+}
+function flyTopDown(dur = 1.4) {
+  flyTo(new THREE.Vector3(0, 320, 0.01), new THREE.Vector3(0, 0, 0), dur);
+  toast('俯視角度——再撳「總覽」返回', 2200);
+}
+$('mm-top').addEventListener('click', () => flyTopDown());
+mmCv.addEventListener('click', () => flyTopDown());
+
 // ------------------------------------------------------------------ loop
 const clock = new THREE.Timer();
 let elapsed = 0;
@@ -632,11 +699,13 @@ function frame() {
   composer.render(dt);
   camera.position.x -= sx; camera.position.y -= sy;
   projectHotspots();
+  if (Math.abs(app.built - lastMmStage) > 0.008 || app.waveDir !== lastMmWd) dirtyMinimap = true;
+  drawMinimap();
   requestAnimationFrame(frame);
 }
 
 
-// ------------------------------------------------------------------ wave direction (海浪方向)
+// ------------------------------------------------------------------ wave direction (八方位)
 const DIR_NAMES: [number, string, string][] = [
   [0, '北', '北岸／海蝕隙受浪較強'],
   [45, '東北', '東北岩岬浪擊加強'],
@@ -647,55 +716,43 @@ const DIR_NAMES: [number, string, string][] = [
   [270, '西', '西岸受蝕 · 沙偏向東灣堆積'],
   [315, '西北', '西北岸浪強'],
 ];
-function dirLabel(deg: number): [string, string] {
-  let best = DIR_NAMES[0], bd = 999;
-  for (const d of DIR_NAMES) {
-    const diff = Math.min(Math.abs(deg - d[0]), 360 - Math.abs(deg - d[0]));
-    if (diff < bd) { bd = diff; best = d; }
+const WAVE_BEARINGS = DIR_NAMES.map((d) => d[0]);
+function snapBearing(deg: number): number {
+  deg = ((deg % 360) + 360) % 360;
+  let best = WAVE_BEARINGS[0], bd = 999;
+  for (const b of WAVE_BEARINGS) {
+    const diff = Math.min(Math.abs(deg - b), 360 - Math.abs(deg - b));
+    if (diff < bd) { bd = diff; best = b; }
   }
-  return [best[1], best[2]];
+  return best;
+}
+function dirLabel(deg: number): [string, string] {
+  const d = DIR_NAMES.find((x) => x[0] === snapBearing(deg)) ?? DIR_NAMES[4];
+  return [d[1], d[2]];
 }
 function applyWaveDir(deg: number, rebuild = true) {
-  deg = ((deg % 360) + 360) % 360;
+  deg = snapBearing(deg);
   app.waveDir = deg;
-  const slider = $('wave-dir') as HTMLInputElement;
-  slider.value = String(Math.round(deg));
-  slider.style.setProperty('--p', `${(deg / 360) * 100}%`);
   const [name, hint] = dirLabel(deg);
   $('wave-dir-lbl').textContent = name;
   $('wave-hint').textContent = `浪從${name}方來 · ${hint}`;
-  $('wave-needle').style.transform = `rotate(${deg}deg)`;
-  // baked swell travels from N; UI degrees are "from", so shader rot = -rad
+  document.querySelectorAll<HTMLButtonElement>('#wave-pad .wd').forEach((b) => {
+    b.classList.toggle('active', Number(b.dataset.deg) === deg);
+  });
   water.setWaveAngle((-deg * Math.PI) / 180);
   if (rebuild) {
     updateSplashSources(app.built);
-    // force terrain rebuild for sand lee bias
     requestedWd = -999;
   }
   checkMiniGoal();
+  dirtyMinimap = true;
 }
-const waveDirEl = $('wave-dir') as HTMLInputElement;
-waveDirEl.addEventListener('input', () => {
-  applyWaveDir(Number(waveDirEl.value), true);
-  toast(`海浪方向：${dirLabel(app.waveDir)[0]} —— ${dirLabel(app.waveDir)[1]}`, 1800);
+document.querySelectorAll<HTMLButtonElement>('#wave-pad .wd').forEach((b) => {
+  b.addEventListener('click', () => {
+    applyWaveDir(Number(b.dataset.deg), true);
+    toast(`海浪方向：${dirLabel(app.waveDir)[0]} —— ${dirLabel(app.waveDir)[1]}`, 1800);
+  });
 });
-// drag on compass
-(() => {
-  const el = $('wave-compass');
-  let dragging = false;
-  const setFromEvent = (e: PointerEvent) => {
-    const r = el.getBoundingClientRect();
-    const x = e.clientX - r.left - r.width / 2;
-    const y = e.clientY - r.top - r.height / 2;
-    // needle points toward wave origin (from); 0 = north = up = -Y in screen
-    let deg = (Math.atan2(x, -y) * 180) / Math.PI;
-    if (deg < 0) deg += 360;
-    applyWaveDir(deg, true);
-  };
-  el.addEventListener('pointerdown', (e) => { dragging = true; el.setPointerCapture(e.pointerId); setFromEvent(e); });
-  el.addEventListener('pointermove', (e) => { if (dragging) setFromEvent(e); });
-  el.addEventListener('pointerup', () => { dragging = false; toast(`海浪方向：${dirLabel(app.waveDir)[0]}`, 1400); });
-})();
 
 // play tip + mini goal
 const tipEl = $('play-tip');
@@ -712,8 +769,8 @@ $('mg-close').addEventListener('click', () => mgEl.classList.remove('show'));
 let mgDone = false;
 function checkMiniGoal() {
   if (mgDone || !mgEl.classList.contains('show')) return;
-  // goal: wave from east (70–110) and late stage
-  const east = Math.min(Math.abs(app.waveDir - 90), 360 - Math.abs(app.waveDir - 90)) < 25;
+  // goal: wave from east (exact 8-way) and late stage
+  const east = app.waveDir === 90;
   if (east && app.stage > 0.7) {
     $('mg-text').textContent = '做得好！浪從東方來時，沙偏向西側堆積——這就是背浪面沉積。';
     $('mg-done').textContent = '太棒了 ✓';
@@ -725,6 +782,7 @@ $('mg-done').addEventListener('click', () => {
   toast('小任務完成！繼續拖時間軸或轉浪向探索', 2800);
 });
 
+
 // ------------------------------------------------------------------ boot
 function boot() {
   setStage(0);
@@ -733,7 +791,7 @@ function boot() {
   firstBuild = () => setTimeout(() => {
     $('loader').classList.add('done');
     flyOverview(4.2);
-    setTimeout(() => toast('初期兩島分開 · 拖時間軸睇連島沙洲 · 轉海浪方向睇沉積偏向', 4800), 1600);
+    setTimeout(() => toast('初期兩島分開 · 拖時間軸睇連島沙洲 · 八方位轉浪向 · 右上角俯視圖', 4800), 1600);
   }, 250);
   requestBuild(0);
   requestAnimationFrame(frame);
@@ -747,4 +805,4 @@ function snap() {
   if (stageTween) { setStage(stageTween.to); stageTween = null; }
   if (camTween) { camera.position.copy(camTween.p1); controls.target.copy(camTween.t1); camTween = null; controls.update(); }
 }
-(window as unknown as Record<string, unknown>).__sim = { snap, focusLandform, V3: THREE.Vector3, world: W, setView, app, setStage, animateStage, selectLandform, flyTo, flyOverview, setMode, camera, controls, caveZ, splash, setPlaying, applyWaveDir };
+(window as unknown as Record<string, unknown>).__sim = { snap, focusLandform, V3: THREE.Vector3, world: W, setView, app, setStage, animateStage, selectLandform, flyTo, flyOverview, flyTopDown, setMode, camera, controls, caveZ, splash, setPlaying, applyWaveDir, drawMinimap };
