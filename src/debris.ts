@@ -36,7 +36,7 @@ export class CliffDebris {
       if (Math.abs(x - GX) < 6) { id++; continue; }
       const h = hash1(id * 13 + 7);
       if (h < 0.38) { id++; continue; }
-      const born = -0.35 + 1.3 * hash1(id * 29 + 3);
+      const born = 0.18 + 0.22 * hash1(id * 29 + 3); // appear around 崩塌 beat
       this.rocks.push({
         x: x + (hash1(id * 5 + 1) - 0.5) * 1.6, born, off: -(0.8 + 2.6 * hash1(id * 17 + 9)),
         size: 0.45 + 1.05 * hash1(id * 31 + 4) ** 1.5,
@@ -52,7 +52,7 @@ export class CliffDebris {
   update(s: number) {
     this.rocks.forEach((r, i) => {
       const t0 = Math.max(0, r.born);
-      const vis = (r.born < 0 ? 1 : smoothstep(r.born, r.born + 0.012, s)) * (1 - smoothstep(t0 + 0.12, t0 + 0.32, s));
+      const vis = smoothstep(r.born, r.born + 0.015, s) * (1 - smoothstep(t0 + 0.18, t0 + 0.45, s));
       const k = r.size * vis;
       const z = southCliff(r.x, Math.min(s, t0)) + r.off;
       this.q.setFromEuler(r.rot);

@@ -9,6 +9,7 @@ import { activeStrike, strikeFor, type Strike } from './waveWork';
 import { wetUniforms } from './wet';
 import type { SplashSource } from './splash';
 import { GeoGuide } from './geoGuide';
+import { CliffGuide, CLIFF_COLLAPSE_S } from './cliffGuide';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -19,7 +20,9 @@ const annoEl = document.createElement('div');
 annoEl.id = 'annos';
 $('labels').after(annoEl);
 const guide = new GeoGuide(annoEl);
+const cliffGuide = new CliffGuide(annoEl);
 W.scene.add(guide.group);
+W.scene.add(cliffGuide.group);
 
 // geometry is rebuilt in a worker so dragging the timeline never blocks rendering
 const worker = new Worker(new URL('./buildWorker.ts', import.meta.url), { type: 'module' });
@@ -30,6 +33,7 @@ worker.onmessage = (e: MessageEvent) => {
   land.apply(head, terrain, geo);
   debris.update(s);
   guide.update(s);
+  cliffGuide.update(s);
   detectCollapses(app.built, s);
   app.built = s;
   inflight = false;
@@ -228,9 +232,18 @@ function projectStrike() {
   strikeEl.style.transform = `translate(${x}px, ${y}px)`;
 }
 
-/** Arch roofs and stacks collapse as discrete events when the timeline sweeps through them. */
+/** Discrete collapse beats: 南氹海蝕凹地頂部、拱頂、柱腳. */
 function detectCollapses(prev: number, s: number) {
   if (!(s > prev) || s - prev > 0.06) return;
+  // 南氹：海蝕凹地頂部崩塌 → 陡峭海崖
+  if (prev < CLIFF_COLLAPSE_S && s >= CLIFF_COLLAPSE_S) {
+    const x = 18;
+    const z = southCliff(x, s);
+    splash.collapse(new THREE.Vector3(x, 0, z - 1.5), 14, 16);
+    splash.collapse(new THREE.Vector3(x + 12, 0, southCliff(x + 12, s) - 1.2), 10, 12);
+    shake = Math.max(shake, 1.05);
+    toast('轟！海蝕凹地頂部崩塌——形成陡峭海崖', 4500);
+  }
   for (let k = 0; k < SEGMENTS.length; k++) {
     const p0 = phase(prev, k), p1 = phase(s, k);
     const zc = caveZ(k);
@@ -368,11 +381,17 @@ $('info-close').addEventListener('click', closeInfo);
 $('info-jump').addEventListener('click', () => {
   if (!app.selected) return;
   const lf = byId(app.selected);
-  const from = Math.max(0, lf.bestStage - (lf.id === 'platform' || lf.id === 'tombolo' || lf.id === 'beach' ? 0.7 : 0.28));
+  // 海崖：完整走一輪 原本坡面 → 凹地 → 崩塌 → 海崖／平台
+  const from = lf.id === 'cliff' ? 0.02
+    : Math.max(0, lf.bestStage - (lf.id === 'platform' || lf.id === 'tombolo' || lf.id === 'beach' ? 0.7 : 0.28));
+  const target = lf.id === 'cliff' ? 0.55 : lf.bestStage;
+  const dur = lf.id === 'cliff' ? 11 : 6;
+  const watchMs = lf.id === 'cliff' ? 14000 : 9000;
   setStage(from);
-  focusLandform(lf.id, lf.bestStage, 1.2);
-  watch = { id: lf.id, sTarget: lf.bestStage, until: performance.now() + 9000 };
-  setTimeout(() => animateStage(lf.bestStage, 6), 500);
+  focusLandform(lf.id, from, 1.2);
+  watch = { id: lf.id, sTarget: target, until: performance.now() + watchMs };
+  setTimeout(() => animateStage(target, dur), 500);
+  if (lf.id === 'cliff') toast('觀看：原本坡面 → 海蝕凹地 → 崩塌 → 海崖後退', 3500);
 });
 
 // processes panel
@@ -579,6 +598,13 @@ function geoGuideWanted(now: number): boolean {
   if (app.mode === 'story') return STORY[storyIdx].focus === 'geo';
   return app.selected === 'geo' || (watch !== null && watch.id === 'geo' && now < watch.until);
 }
+/** 南氹海崖／海蝕凹地／崩塌教學標註. */
+function cliffGuideWanted(now: number): boolean {
+  if (app.mode === 'quiz') return false;
+  if (app.mode === 'story') return STORY[storyIdx].focus === 'cliff' || STORY[storyIdx].focus === 'platform';
+  return app.selected === 'cliff' || app.selected === 'platform'
+    || (watch !== null && (watch.id === 'cliff' || watch.id === 'platform') && now < watch.until);
+}
 
 // ------------------------------------------------------------------ top-view minimap (右上角)
 const mmCv = $('minimap-cv') as HTMLCanvasElement;
@@ -688,6 +714,8 @@ function frame() {
   projectStrike();
   guide.visible = geoGuideWanted(now);
   guide.tick(dt, elapsed, camera);
+  cliffGuide.visible = cliffGuideWanted(now);
+  cliffGuide.tick(dt, elapsed, camera);
 
   // collapse shake: offset the camera only for this frame's render
   let sx = 0, sy = 0;

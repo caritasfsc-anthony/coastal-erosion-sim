@@ -22,7 +22,7 @@ function headlandStrike(k: number, s: number): Strike {
   const top = headTop(HX, zc);
   if (p < 0.1) return {
     pos: new THREE.Vector3(HX + w + 0.4, 0.8, zc), n: new THREE.Vector3(1, 0, 0.25), face: top, segment: k,
-    title: '浪蝕凹壁加深中', text: `每一下浪都拍向崖腳：${PROC}把潮間帶的岩石掏空，形成凹壁。`,
+    title: '海蝕凹地加深中', text: `每一下浪都拍向崖腳：${PROC}把潮間帶的岩石掏空，形成海蝕凹地。`,
   };
   if (p < 0.38) return {
     pos: new THREE.Vector3(HX + w + 0.4, Math.max(0.8, cv.ry * 0.3), zc), n: new THREE.Vector3(1, 0, 0.25), face: top, segment: k,
@@ -39,7 +39,7 @@ function headlandStrike(k: number, s: number): Strike {
   const st = stackGeom(k, p);
   if (p < 0.88) return {
     pos: new THREE.Vector3(HX + st.r + 0.3, 0.8, st.zs), n: new THREE.Vector3(1, 0, 0.35), face: top, segment: k,
-    title: '海蝕柱底部被掏蝕', text: '海浪環繞海蝕柱拍打，在柱腳蝕出浪蝕凹壁，上方岩柱愈來愈「頭重腳輕」。',
+    title: '海蝕柱底部被掏蝕', text: '海浪環繞海蝕柱拍打，在柱腳蝕出海蝕凹地，上方岩柱愈來愈「頭重腳輕」。',
   };
   return {
     pos: new THREE.Vector3(HX + st.r + 0.3, 0.6, st.zs), n: new THREE.Vector3(1, 0, 0.35), face: 2, segment: k,
@@ -58,12 +58,39 @@ export function strikeFor(id: LandformId, s: number, sTarget = s): Strike {
   switch (id) {
     case 'cliff': case 'platform': {
       const x = id === 'cliff' ? 18 : 40;
+      const cl = southCliff(x, s);
+      if (id === 'platform' || s >= 0.45) {
+        return {
+          pos: new THREE.Vector3(x, 0.8, cl - 0.6), n: new THREE.Vector3(0, 0, -1), face: 20,
+          title: '南氹：海崖後退 → 浪蝕平台擴闊',
+          text: '浪只能蝕到潮間帶高度；崩塌岩屑被沖走後留下平緩岩台。平台愈闊，浪到崖腳前消耗的能量愈多。',
+        };
+      }
+      if (s < 0.1) {
+        return {
+          pos: new THREE.Vector3(x, 0.9, cl - 0.5), n: new THREE.Vector3(0, 0, -1), face: 14,
+          title: '原本坡面：浪開始衝擊崖腳',
+          text: `破壞性海浪在高潮位附近拍打較和緩的岩岸。接下來會蝕出「海蝕凹地」。（${PROC}）`,
+        };
+      }
+      if (s < 0.23) {
+        return {
+          pos: new THREE.Vector3(x, 0.85, cl + 0.2), n: new THREE.Vector3(0, 0, -1), face: 12,
+          title: '海蝕凹地加深中',
+          text: `${PROC}把潮間帶崖腳掏空，形成明顯的海蝕凹地（wave-cut notch）。凹地愈深，上方岩石愈不穩。`,
+        };
+      }
+      if (s < 0.32) {
+        return {
+          pos: new THREE.Vector3(x, 1.2, cl - 0.3), n: new THREE.Vector3(0, 0, -1), face: 18,
+          title: '海蝕凹地頂部崩塌！',
+          text: '凹地頂部失去支撐而崩塌，碎石跌落海中；留下陡峭海崖，岩屑稍後被浪沖走。',
+        };
+      }
       return {
-        pos: new THREE.Vector3(x, 0.8, southCliff(x, s) - 0.6), n: new THREE.Vector3(0, 0, -1), face: 20,
-        title: id === 'cliff' ? '南氹崖腳受浪拍打 → 海崖後退' : '南氹／饅頭石：海崖後退 → 平台擴闊',
-        text: id === 'cliff'
-          ? '浪在崖腳蝕出凹壁，上方岩石失去支撐而崩落；落石被浪捲走，海崖一步步向陸後退。'
-          : '浪只能蝕到潮間帶高度，海崖後退後在崖腳留下平緩的岩台；平台愈闊，浪到崖腳前消耗的能量愈多。',
+        pos: new THREE.Vector3(x, 0.8, cl - 0.6), n: new THREE.Vector3(0, 0, -1), face: 20,
+        title: '陡峭海崖成形 · 繼續後退',
+        text: '「凹地 → 崩塌」反覆進行，海崖向陸後退；崖腳浪蝕平台逐漸變闊。',
       };
     }
     case 'geo': {

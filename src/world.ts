@@ -339,12 +339,13 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
   let h = seabed;
   let m = MAT_SEABED;
 
-  // --- south hillmass (南氹): textbook — original slope → notch → collapse → steep cliff + widening platform ---
+  // --- south hillmass (南氹): textbook — 原本坡面 → 海蝕凹地 → 崩塌 → 陡峭海崖 + 浪蝕平台變闊 ---
   if (ds < 1.28) {
     const inland = z - sCl; // >0 = inland of south cliff
-    const notchPhase = smoothstep(0.02, 0.22, s);
-    const collapsePhase = smoothstep(0.1, 0.36, s);
-    const platPhase = smoothstep(0.12, 1.0, s);
+    // Distinct teaching beats: notch deepens first, then collapse (≈0.24) forms the cliff
+    const notchPhase = smoothstep(0.02, 0.20, s);           // 海蝕凹地加深
+    const collapsePhase = smoothstep(0.22, 0.40, s);        // 崩塌後變陡壁
+    const platPhase = smoothstep(0.24, 1.0, s);
     const platW = Math.max(1.5, (sCoast - sCl)) + 1.5 + 28 * platPhase;
     if (inland <= 0) {
       // Wave-cut platform: flat intertidal rock; must override elevated island-core seabed
@@ -359,21 +360,28 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
     } else {
       // Clear elevated island-core seabed so the slope / notch / cliff can write
       if (h > -0.5) h = -2.0;
-      // (1) Original gentle slope (原本的坡面)
-      const slopeLen = 32 - 18 * collapsePhase;
-      const slopeExp = lerp(1.25, 0.4, collapsePhase);
-      const origSlope = S[o + 5] * Math.pow(smoothstep(0.0, slopeLen, inland), slopeExp) * lerp(0.85, 0.18, collapsePhase);
+      // (1) Original gentle slope (原本的坡面) — dominant early, fades after collapse
+      const slopeLen = 34 - 20 * collapsePhase;
+      const slopeExp = lerp(1.35, 0.35, collapsePhase);
+      const origSlope = S[o + 5] * Math.pow(smoothstep(0.0, slopeLen, inland), slopeExp) * lerp(0.92, 0.12, collapsePhase);
 
-      // (2) Notch roof band (浪蝕凹壁) — heightfield shows low undercut shelf, then collapse to wall
-      const notchW = 1.8 + 2.4 * notchPhase;
-      const notchRoof = 0.95 + 0.7 * notchPhase + 0.1 * S[o + 7];
-      const notchBand = smoothstep(0.0, 0.55, inland) * smoothstep(notchW + 0.9, 0.5, inland);
+      // (2) 海蝕凹地 (wave-cut notch) — deep undercut shelf at waterline BEFORE collapse
+      // Heightfield cannot true-overhang; we carve a clear low roof band so students see the indent.
+      const notchW = 2.2 + 3.6 * notchPhase; // deepens inland as notch grows
+      const notchRoof = 0.75 + 0.55 * notchPhase + 0.08 * S[o + 7];
+      const notchBand = smoothstep(0.0, 0.45, inland) * smoothstep(notchW + 1.1, 0.35, inland)
+        * (1 - collapsePhase * 0.85); // notch reads strongest mid-timeline, then remnant only
+
+      // Overhang bulk just inland of the notch (the rock that will collapse)
+      const overhang = S[o + 5] * 0.55 * notchPhase * (1 - collapsePhase)
+        * smoothstep(notchW * 0.55, notchW + 1.8, inland)
+        * smoothstep(notchW + 8, notchW + 2.5, inland);
 
       // (3) Steep cliff after roof collapse
-      const wallEnd = lerp(10, 1.4, collapsePhase);
-      const rise = Math.pow(smoothstep(0.1, wallEnd, inland), lerp(1.0, 0.2, collapsePhase));
+      const wallEnd = lerp(11, 1.35, collapsePhase);
+      const rise = Math.pow(smoothstep(0.08, wallEnd, inland), lerp(1.05, 0.18, collapsePhase));
       const pillar = 0.55 + 0.45 * Math.abs(Math.sin(x * 0.48 + noise2(x * 0.07, 2.2) * 2.2));
-      const face = S[o + 5] * rise * (0.8 + 0.28 * pillar * (1 - rise)) * collapsePhase;
+      const face = S[o + 5] * rise * (0.82 + 0.28 * pillar * (1 - rise)) * collapsePhase;
 
       const mid = S[o + 5] * 0.4;
       const step = collapsePhase * (
@@ -381,20 +389,19 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
         + (S[o + 5] - mid) * Math.pow(smoothstep(1.0, 1.7, inland), 0.28)
       );
       // Hill plateau only further inland — avoid burying the early gentle slope / notch
-      const hill = S[o + 5] * smoothstep(lerp(9, 1.4, collapsePhase), lerp(20, 5.5, collapsePhase), inland);
+      const hill = S[o + 5] * smoothstep(lerp(10, 1.35, collapsePhase), lerp(22, 5.5, collapsePhase), inland);
       const groove = Math.max(0, 0.5 - Math.abs(Math.sin(x * 0.35)) * 1.05)
         * smoothstep(0.5, 2.5, inland) * (1 - smoothstep(3, 6.5, inland)) * collapsePhase;
 
-      let landH = Math.max(origSlope, face, step, hill) - groove * 4.8 * smoothstep(0, 0.35, s + 0.2);
-      // Cap through the notch band (undercut shelf) — do not carve below platform into core-seabed
-      if (notchBand > 0.04) {
-        const roof = lerp(notchRoof, Math.max(notchRoof, landH), collapsePhase * collapsePhase);
-        landH = lerp(landH, Math.min(landH, roof), notchBand);
+      let landH = Math.max(origSlope, overhang, face, step, hill) - groove * 4.8 * smoothstep(0, 0.35, s + 0.2);
+      // Carve the 海蝕凹地 undercut (low roof at waterline)
+      if (notchBand > 0.03) {
+        landH = lerp(landH, Math.min(landH, notchRoof), notchBand);
       }
       // Remnant foot-notch after collapse (textbook undercut at cliff base)
-      if (collapsePhase > 0.35) {
-        const foot = smoothstep(0.0, 0.4, inland) * smoothstep(1.55, 0.4, inland);
-        landH = Math.min(landH, lerp(1.2 + 0.25 * S[o + 7], landH, 1 - 0.5 * foot));
+      if (collapsePhase > 0.25) {
+        const foot = smoothstep(0.0, 0.35, inland) * smoothstep(1.7, 0.35, inland);
+        landH = Math.min(landH, lerp(1.05 + 0.22 * S[o + 7], landH, 1 - 0.55 * foot));
       }
       landH = Math.max(landH, 0.08); // never fall through to elevated core-seabed holes
       if (landH > h) { h = landH; m = MAT_LAND; }

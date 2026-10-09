@@ -27,18 +27,18 @@ export interface Landform {
 export const LANDFORMS: Landform[] = [
   {
     id: 'cliff', zh: '海崖', en: 'Sea Cliff', tag: '侵蝕地貌',
-    short: '浪先在崖腳蝕出浪蝕凹壁，凹壁頂部崩塌後形成陡峭岩壁；海崖不斷向陸後退。長洲南氹可見。',
+    short: '浪先在崖腳蝕出「海蝕凹地」，凹地頂部崩塌後形成陡峭岩壁；海崖不斷向陸後退。長洲南氹可見。',
     steps: [
       '原本岩岸較為和緩（原本的坡面）。破壞性海浪在高潮位附近衝擊崖腳。',
-      '水力作用與磨蝕作用蝕出「浪蝕凹壁」（wave-cut notch），凹壁愈蝕愈深。',
-      '凹壁頂部岩石失去支撐而崩塌，形成陡峭的海崖。',
-      '「凹壁 → 崩塌」反覆進行，海崖向陸地後退，崖腳留下愈來愈闊的浪蝕平台。',
+      '水力作用與磨蝕作用蝕出「海蝕凹地」（wave-cut notch），凹地愈蝕愈深。',
+      '海蝕凹地的頂部因失去支撐而崩塌，形成陡峭的海崖。',
+      '「凹地 → 崩塌」反覆進行，海崖向陸地後退，崖腳留下愈來愈闊的浪蝕平台。',
     ],
     processes: ['水力作用', '磨蝕作用', '風化及塊體移動'],
-    sequence: '海崖後退留下浪蝕平台；岬角上海崖沿弱點可發展成海蝕洞。',
+    sequence: '原本坡面 → 海蝕凹地加深 → 崩塌 → 海崖後退／浪蝕平台變闊',
     example: '長洲南氹（Nam Tam）南岸；亦可對照西貢東部、東平洲。',
-    bestStage: 0.26, view: [48, 18, -72],
-    quiz: '由崖腳的浪蝕凹壁不斷擴大、上方岩石崩塌而形成的陡峭岩壁是？',
+    bestStage: 0.32, view: [78, 22, -130],
+    quiz: '由崖腳的海蝕凹地不斷擴大、上方岩石崩塌而形成的陡峭岩壁是？',
   },
   {
     id: 'platform', zh: '浪蝕平台', en: 'Wave-cut Platform', tag: '侵蝕地貌',
@@ -118,8 +118,8 @@ export const LANDFORMS: Landform[] = [
     id: 'stump', zh: '海蝕殘柱', en: 'Stump', tag: '延伸', bonus: true,
     short: '海蝕柱底部被蝕斷倒塌後，只剩下的低矮岩墩。',
     steps: [
-      '海浪在海蝕柱底部蝕出浪蝕凹壁。',
-      '凹壁擴大，海蝕柱最終倒塌。',
+      '海浪在海蝕柱底部蝕出海蝕凹地。',
+      '凹地擴大，海蝕柱最終倒塌。',
       '只剩下低矮的殘柱，高潮時可能被海水淹沒，成為浪蝕平台的一部分。',
     ],
     processes: ['水力作用', '磨蝕作用'],
@@ -192,10 +192,21 @@ export function landformState(id: LandformId, s: number, out = new THREE.Vector3
       const cl = southCliff(x, s);
       const R = Math.round(retreat(s));
       let note: string;
-      if (s < 0.12) note = '初期：原本坡面受浪衝擊，崖腳開始出現浪蝕凹壁';
-      else if (s < 0.28) note = `凹壁加深，頂部岩石快將／正在崩塌 · 已後退約 ${R} 米（示意）`;
-      else note = `陡峭海崖成形 · 岸線已後退約 ${R} 米，崖腳平台擴闊中（示意）`;
-      return { present: true, pos: out.set(x, H * 0.62, cl + 1.2), note };
+      let y = H * 0.55;
+      if (s < 0.08) {
+        note = '第①步：原本的坡面——岩岸仍較和緩，浪開始衝擊崖腳';
+        y = H * 0.35;
+      } else if (s < 0.23) {
+        note = '第②步：海蝕凹地加深——潮間帶崖腳被掏空（wave-cut notch）';
+        y = 2.4; // pin at waterline notch
+        return { present: true, pos: out.set(x, y, cl + 0.6), note };
+      } else if (s < 0.30) {
+        note = `第③步：海蝕凹地頂部崩塌 · 已後退約 ${R} 米（示意）`;
+        y = H * 0.45;
+      } else {
+        note = `第④步：陡峭海崖成形 · 岸線已後退約 ${R} 米，崖腳平台擴闊中（示意）`;
+      }
+      return { present: true, pos: out.set(x, y, cl + 1.2), note };
     }
     case 'platform': {
       const x = 22;
@@ -209,7 +220,7 @@ export function landformState(id: LandformId, s: number, out = new THREE.Vector3
         present: s > 0.08,
         pos: out.set(x, 1.4, cl - Math.max(5, w * 0.4)),
         note: s < 0.14
-          ? '凹壁／崩塌初期：浪蝕平台仍很窄'
+          ? '凹地／崩塌初期：浪蝕平台仍很窄'
           : `波浪沖走岩屑後留下平台 · 現闊約 ${Math.round(w)} 米，隨海崖後退而擴闊`,
       };
     }
