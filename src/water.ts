@@ -40,9 +40,11 @@ float fbm(vec2 p){ float s=0.0, a=0.5; for(int i=0;i<4;i++){ s+=a*vnoise(p); p=p
 
 const LAND = /* glsl */ `
 uniform sampler2D uHeight; uniform vec3 uHeightRect;
-float landH(vec2 xz){ vec2 uv=(xz-uHeightRect.xy)/uHeightRect.z;
-  if(uv.x<0.0||uv.y<0.0||uv.x>1.0||uv.y>1.0) return -16.0;
-  return texture2D(uHeight, uv).r*72.0-28.0; }
+vec4 landSample(vec2 xz){ vec2 uv=(xz-uHeightRect.xy)/uHeightRect.z;
+  if(uv.x<0.0||uv.y<0.0||uv.x>1.0||uv.y>1.0) return vec4(0.0,0.0,0.0,0.0);
+  return texture2D(uHeight, uv); }
+float landH(vec2 xz){ return landSample(xz).r*72.0-28.0; }
+float landSand(vec2 xz){ return landSample(xz).g; } // soft submerged sand mask
 `;
 
 const vert = /* glsl */ `
@@ -112,9 +114,18 @@ void main(){
   sky += uSunColor*pow(max(dot(R,uSunDir),0.0), 12.0)*0.35;
   float dt = smoothstep(0.0, 10.0, depth);
   vec3 body = mix(uShallow, uDeep, dt);
-  // light scattering through wave crests
-  body += uShallow*0.35*smoothstep(0.2, 1.0, vCrest)*max(dot(uSunDir, -V)*0.5+0.5, 0.0);
-  vec3 col = mix(body, sky, fres*0.85);
+  // Soft fuzzy underwater sand PATH — warm tan haze wins over cyan shallows; frayed edges
+  float sandM = landSand(vWorld.xz);
+  float sandVis = sandM * smoothstep(4.5, 0.4, depth);
+  float sandNoise = 0.3 + 0.45*fbm(q*0.06 + vec2(3.1, 7.7)) + 0.3*fbm(q*0.2 + vec2(9.2, 1.4));
+  sandVis = pow(clamp(sandVis * sandNoise, 0.0, 1.0), 1.05);
+  vec3 sandTint = vec3(0.86, 0.72, 0.48); // warm tan
+  vec3 sandDeep = vec3(0.55, 0.50, 0.34);
+  vec3 sandCol = mix(sandDeep, sandTint, clamp(1.15 - depth*0.35, 0.0, 1.0));
+  // Prefer tan over default cyan shallow so mid tombolo looks sandy, not a teal slab
+  body = mix(body, sandCol, clamp(sandVis * 0.92, 0.0, 1.0));
+  body += uShallow*0.28*smoothstep(0.2, 1.0, vCrest)*max(dot(uSunDir, -V)*0.5+0.5, 0.0)*(1.0 - 0.55*sandVis);
+  vec3 col = mix(body, sky, fres*0.8*(1.0 - 0.4*sandVis));
   vec3 H = normalize(uSunDir + V);
   float spec = pow(max(dot(N,H),0.0), 600.0)*5.0 + pow(max(dot(N,H),0.0), 60.0)*0.25;
   col += uSunColor*spec;
@@ -134,7 +145,9 @@ void main(){
   foam *= smoothstep(-0.2, 0.35, depth); // kill foam on dry sand crest
   col = mix(col, uFoam, foam);
   float alpha = mix(0.42, 0.95, smoothstep(0.0, 5.0, depth));
-  alpha = max(max(alpha, foam), fres);
+  // Keep mid tombolo water translucent so soft sand path reads as underwater haze
+  alpha = mix(alpha, mix(0.28, 0.55, smoothstep(0.0, 2.2, depth)), sandVis*0.75);
+  alpha = max(max(alpha, foam), fres*(1.0 - 0.25*sandVis));
   float fog = 1.0 - exp(-pow(uFogDensity*dist, 2.0));
   col = mix(col, uFogColor, fog);
   alpha = mix(alpha, 1.0, fog);

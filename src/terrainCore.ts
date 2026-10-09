@@ -22,20 +22,28 @@ export function colorFor(out: RGB, x: number, z: number, h: number, m: number, n
   const n = 0.5 + 0.5 * noise2(x * 0.15, z * 0.15);
   let a, b, t: number;
   if (m === MAT_SAND) {
-    // Fine wave-accreted grain + subtle swash ripples (not a flat tiled slab)
+    // Wave-accreted grain: deep submerged = soft warm tan haze; dry = beach sand
     const grain = 0.5 + 0.5 * noise2(x * 0.7, z * 0.7);
     const grain2 = 0.5 + 0.5 * noise2(x * 1.8 + 2.1, z * 1.6);
     const ripple = 0.5 + 0.5 * Math.sin(x * 1.15 + z * 0.4 + noise2(x * 0.22, z * 0.2) * 2.4);
-    if (h > 0.55) {
+    if (h > 0.35) {
       a = PAL.sandWet; b = PAL.sand;
-      t = smoothstep(0.55, 1.9, h) * (0.72 + 0.18 * grain + 0.1 * ripple);
-    } else {
+      t = smoothstep(0.35, 1.9, h) * (0.72 + 0.18 * grain + 0.1 * ripple);
+    } else if (h > -1.2) {
+      // shallow submerged — brighter tan so it reads as soft path through water
       a = PAL.sandDeep; b = PAL.sandWet;
-      t = smoothstep(-2.6, 0.55, h) * (0.68 + 0.2 * grain + 0.12 * grain2);
+      t = smoothstep(-1.2, 0.35, h) * (0.55 + 0.25 * grain + 0.15 * grain2);
+      out[0] = lerp(a.r, b.r, t); out[1] = lerp(a.g, b.g, t); out[2] = lerp(a.b, b.b, t);
+      // warm underwater glow (fuzzy sand look)
+      out[0] = Math.min(1, out[0] * 1.08 + 0.06); out[1] = Math.min(1, out[1] * 1.02 + 0.04); out[2] = out[2] * 0.92;
+      return out;
+    } else {
+      // deep submerged bar — muted sandy seabed, still readable as tan path
+      a = PAL.seabedShallow; b = PAL.sandDeep;
+      t = smoothstep(-3.6, -1.2, h) * (0.6 + 0.25 * grain);
     }
     out[0] = lerp(a.r, b.r, t); out[1] = lerp(a.g, b.g, t); out[2] = lerp(a.b, b.b, t);
-    // dry crest highlight + wet swash band
-    const dry = smoothstep(0.4, 1.5, h) * (0.08 + 0.1 * grain2);
+    const dry = smoothstep(0.25, 1.5, h) * (0.08 + 0.1 * grain2);
     out[0] = Math.min(1, out[0] + dry * 0.12); out[1] = Math.min(1, out[1] + dry * 0.1); out[2] = Math.min(1, out[2] + dry * 0.07);
     const swash = smoothstep(0.55, -0.05, h) * smoothstep(-1.6, 0.15, h) * (0.12 + 0.1 * ripple);
     out[0] = lerp(out[0], PAL.sandWet.r, swash); out[1] = lerp(out[1], PAL.sandWet.g, swash); out[2] = lerp(out[2], PAL.sandWet.b, swash);
@@ -161,10 +169,17 @@ export class TerrainCore {
       } else if (h < 3) {
         if (x > HX - 20 && x < HX + 20 && z > 85 && z < 152 && solidAt(x, z)) h = 4;
       }
-      // Bias dry/wet sand up in the water depth map so foam never "washes through" the tombolo
-      if (this.inner.mats[v] === MAT_SAND && h > -1.4) h = Math.max(h, 0.85 + Math.max(0, h) * 0.35);
+      // Only bias EMERGENT dry sand (late tombolo) — never lift mid submerged bar or it becomes a hard rectangle
+      const isSand = this.inner.mats[v] === MAT_SAND;
+      if (isSand && h > 0.2) h = Math.max(h, 0.45 + h * 0.2);
       const e = Math.max(0, Math.min(255, Math.round(((h + 28) / 72) * 255)));
-      tex[v * 4] = e; tex[v * 4 + 1] = e; tex[v * 4 + 2] = e; tex[v * 4 + 3] = 255;
+      // G = soft sand mask for water shader (fuzzy underwater tan path)
+      let sandAmt = 0;
+      if (isSand) {
+        // mid submerged bar must tint strongly; dry crest fades so terrain mesh shows
+        sandAmt = Math.round(255 * smoothstep(-3.2, -0.8, h) * smoothstep(1.2, 0.05, h));
+      }
+      tex[v * 4] = e; tex[v * 4 + 1] = sandAmt; tex[v * 4 + 2] = e; tex[v * 4 + 3] = 255;
     }
     return tex;
   }

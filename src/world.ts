@@ -253,9 +253,12 @@ export function jointTrace(x: number, z: number, gx: number): number {
   return smoothstep(0.75, 0.12, Math.abs(x - gx)) * smoothstep(coast - 55, coast - 48, z) * smoothstep(coast + 1.5, coast - 0.5, z);
 }
 
-/** Tombolo crest height (m). Deeply negative = open water between islands; then submerged bar; then dry bridge. */
+/** Tombolo crest height (m). Deeply negative = open water; mid = soft submerged bar; late = dry bridge. */
 export const tomboloCrest = (s: number): number =>
-  -4.6 + 2.4 * smoothstep(0.08, 0.38, s) + 4.6 * smoothstep(0.38, 0.88, s);
+  -5.2
+  + 2.8 * smoothstep(0.08, 0.36, s)   // early→mid soft fans (~ -2.4)
+  + 2.2 * smoothstep(0.34, 0.62, s)   // mid: clear submerged bar (~ -0.2)
+  + 3.2 * smoothstep(0.58, 0.92, s);  // late: dry tombolo (~ +3.0)
 
 /** Rounded boulder landmark on the SE rocky shore (teaching prop). */
 export const MANTOU = { x: 58, z: -78, r: 4.2 };
@@ -487,78 +490,98 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
   }
 
   // --- tombolo sand bridge (連島沙洲) ---
-  // Anchored on TOMB_X — grows in place and merges into BOTH rock shores.
-  // Wave direction does NOT shift the bar (avoids "sand jumping" when scrubbing / changing dir).
+  // Soft submerged haze → dry bridge. Fixed on TOMB_X (wave dir never shifts the bar).
+  // Growth: shore fans first → fuzzy mid bar under water → seamless dry join to both islands.
   const t = (z - NECK_Z0) / (NECK_Z1 - NECK_Z0);
-  const sandGate = smoothstep(-3.8, -0.4, K.crest);
-  const shoreJoin = smoothstep(-0.9, 1.35, K.crest);
-  if (t > -0.55 && t < 1.55 && sandGate > 0.012) {
+  const sandGate = smoothstep(-4.6, -1.2, K.crest);          // underwater presence
+  const midBar = smoothstep(-3.4, -0.6, K.crest);            // channel-filling soft bar
+  const shoreJoin = smoothstep(-1.1, 0.95, K.crest);         // dry land emerge (clear by late)
+  if (t > -0.65 && t < 1.65 && sandGate > 0.008) {
     const tc = clamp(t);
-    // Along-channel presence: mid-focused while submerged; full N–S span once joining shores
-    const midFocus = smoothstep(-0.05, 0.22, tc) * smoothstep(1.05, 0.78, tc);
-    const along = lerp(midFocus, 1.0, shoreJoin);
-
-    // Soft irregular shoreline (wave-accreted look — not a hard rectangle)
+    // Soft irregular shoreline (wave-accreted — never a hard rectangle)
     const edgeN =
-      0.62 * noise2(x * 0.048 + 1.7, z * 0.042)
-      + 0.38 * noise2(x * 0.12, z * 0.10 + 2.3)
-      + 0.22 * noise2(x * 0.26, z * 0.22)
-      + 0.12 * noise2(x * 0.55, z * 0.48);
+      0.55 * noise2(x * 0.042 + 1.7, z * 0.038)
+      + 0.35 * noise2(x * 0.11, z * 0.095 + 2.3)
+      + 0.22 * noise2(x * 0.24, z * 0.21)
+      + 0.14 * noise2(x * 0.52, z * 0.46)
+      + 0.08 * noise2(x * 1.1, z * 0.95);
 
-    // Fixed meandering centreline (NO leeX drift)
+    // Fixed meandering centreline (NO leeX / wave-dir drift)
     const cx = TOMB_X
-      + 3.6 * Math.sin(Math.PI * tc)
-      + 2.1 * noise2(z * 0.036, 4.1);
+      + 4.2 * Math.sin(Math.PI * tc)
+      + 2.4 * noise2(z * 0.034, 4.1)
+      + 1.1 * noise2(z * 0.09 + 2.2, 7.3);
 
-    // Soft, scalloped width — strong waist + loud shore flares (not a hard rectangle)
-    const baseHw = 6.5 + 9.0 * sandGate + 3.2 * shoreJoin;
-    const waist = 0.62 + 0.48 * Math.sin(Math.PI * tc); // narrow mid-channel, fat at ends
-    const shoreFlare = shoreJoin * (0.55 + 1.45 * (1 - midFocus));
-    const scallop = 0.55 * noise2(z * 0.09, 8.1) + 0.35 * noise2(z * 0.22 + 1.3, 3.4);
-    const hw = baseHw * waist * (1 + shoreFlare) * (1 + 0.45 * edgeN + 0.25 * scallop);
+    // Grow from BOTH shores first, then fill the mid channel (matches soft fan screenshots)
+    const shoreFans =
+      Math.pow(smoothstep(0.55, -0.18, tc), 1.15)
+      + Math.pow(smoothstep(0.45, 1.18, tc), 1.15);
+    const midFill = Math.pow(Math.sin(Math.PI * clamp(tc)), 0.85);
+    const along =
+      lerp(0.22 + 0.78 * Math.min(1, shoreFans), 1.0, midBar * 0.85)
+      * lerp(0.35 + 0.65 * midFill, 1.0, shoreJoin);
 
-    const dx = (x - cx) / Math.max(3.2, hw);
+    // Soft scalloped PATH — fat at rock toes, NARROW fuzzy waist in mid-channel (not a rectangle)
+    const baseHw = 4.2 + 5.5 * sandGate + 3.8 * midBar + 5.5 * shoreJoin;
+    // |2t-1|^p → 1 at ends, 0 at mid  ⇒  wide fans at shores, thin soft path in centre
+    const waist = 0.38 + 0.78 * Math.pow(Math.abs(2 * tc - 1), 1.15);
+    const shoreFlare = (0.55 + 1.8 * shoreJoin + 0.9 * sandGate * (1 - midBar)) * Math.pow(Math.abs(2 * tc - 1), 0.9);
+    const scallop = 0.85 * noise2(z * 0.07, 8.1) + 0.55 * noise2(z * 0.17 + 1.3, 3.4) + 0.35 * noise2(z * 0.31, 1.9);
+    const hw = baseHw * waist * (1 + shoreFlare) * (1 + 0.7 * edgeN + 0.4 * scallop);
+
+    const dx = (x - cx) / Math.max(2.8, hw);
     const dxAbs = Math.abs(dx);
 
-    // Soft mound crest (no flat mesa) + gentle beach face
-    const crestProfile = Math.pow(Math.max(0, 1 - Math.pow(dxAbs, 1.65)), 2.15);
-    const wash = smoothstep(1.65, 0.35, dxAbs);
+    // Soft mound (no mesa) — very soft falloff for "fuzzy haze" underwater look
+    const crestProfile = Math.pow(Math.max(0, 1 - Math.pow(dxAbs, 1.35)), 2.6);
+    const wash = smoothstep(1.85, 0.25, dxAbs);
     const micro =
-      S[o + 12] * (1.0 + 0.8 * sandGate)
-      + 0.55 * noise2(x * 0.38, z * 0.34) * sandGate
-      + 0.28 * noise2(x * 0.95, z * 0.88) * shoreJoin
-      + 0.15 * noise2(x * 2.1, z * 1.9) * shoreJoin;
+      S[o + 12] * (0.7 + 0.5 * sandGate)
+      + 0.45 * noise2(x * 0.34, z * 0.30) * sandGate
+      + 0.25 * noise2(x * 0.85, z * 0.78) * midBar
+      + 0.18 * noise2(x * 1.9, z * 1.7) * shoreJoin;
 
-    // Meet rock toes — sand must climb onto rocky shore (kill water gap)
-    const nearS = smoothstep(1.5, 0.65, ds);
-    const nearN = smoothstep(1.5, 0.65, dn);
+    // Meet rock toes — late stage climbs onto rocky shore (kill water gap)
+    const nearS = smoothstep(1.55, 0.55, ds);
+    const nearN = smoothstep(1.55, 0.55, dn);
     const toeMeet = Math.max(nearS, nearN) * shoreJoin;
-    const endBoost = shoreJoin * (smoothstep(0.42, -0.12, tc) + smoothstep(0.58, 1.12, tc));
+    const endBoost = shoreJoin * (smoothstep(0.48, -0.15, tc) + smoothstep(0.52, 1.15, tc));
 
-    // Dry crest clearly above water once joined
-    const dryLift = Math.max(0, K.crest) * 0.55 + 0.95 * shoreJoin;
-    const ht = (K.crest + dryLift) * crestProfile
-      + wash * Math.max(-0.35, K.crest * 0.28 - 0.15)
+    // Mid: soft submerged haze. Late: clearly dry beach crest joining both shores.
+    const subH = lerp(-2.7, -1.15, midBar) + 0.4 * noise2(x * 0.18, z * 0.16);
+    const dryLift = Math.max(0, K.crest) * 0.55 + 1.35 * shoreJoin;
+    const targetH = lerp(subH, Math.max(1.8, K.crest + dryLift), shoreJoin);
+    const ht = targetH * crestProfile
+      + wash * Math.max(-1.2, targetH * 0.32 - 0.5)
       + micro
-      + toeMeet * (4.0 + Math.max(0, K.crest) * 1.1)
-      + endBoost * 2.4;
+      + toeMeet * (4.8 + Math.max(0, K.crest) * 1.3)
+      + endBoost * 3.0
+      + (1 - shoreJoin) * sandGate * Math.min(1, shoreFans) * nearS * 1.15
+      + (1 - shoreJoin) * sandGate * Math.min(1, shoreFans) * nearN * 1.15;
 
-    // Soft lateral + along-channel feather (no hard cut ends)
-    const lateral = smoothstep(1.55, 0.48, dxAbs);
-    const endFeather = smoothstep(-0.35, 0.08, tc) * smoothstep(1.35, 0.92, tc);
+    // Fuzzy lateral edge — extra noise so mid path is not a hard rectangle
+    const edgeWobble = 0.55 * noise2(x * 0.09 + z * 0.04, 5.5) + 0.35 * noise2(x * 0.22, z * 0.18);
+    const lateral = Math.pow(smoothstep(1.85 + 0.55 * edgeWobble, 0.18 + 0.2 * Math.abs(edgeWobble), dxAbs), 1.25);
+    const endFeather = smoothstep(-0.45, 0.05, tc) * smoothstep(1.45, 0.95, tc);
     const presence = Math.max(
-      sandGate * (0.15 + 0.85 * along) * endFeather,
-      Math.max(toeMeet, endBoost) * sandGate
+      sandGate * (0.1 + 0.9 * along) * endFeather,
+      Math.max(toeMeet, endBoost) * Math.max(sandGate, shoreJoin * 0.55),
+      sandGate * Math.min(1, shoreFans) * Math.max(nearS, nearN) * 0.9
     ) * lateral;
-    let ht2 = lerp(Math.min(seabed, -1.5), ht, presence);
+    let ht2 = lerp(Math.min(seabed, -2.2), ht, presence);
+    // Late: force dry crest above water across the whole soft path
+    if (shoreJoin > 0.35) {
+      ht2 = Math.max(ht2, (1.35 + 1.1 * shoreJoin) * presence);
+    }
     // When joining shores, never leave a water trough between sand and rock
-    if (toeMeet > 0.15) {
-      const pad = 0.9 + 1.6 * toeMeet;
+    if (toeMeet > 0.1) {
+      const pad = 1.15 + 2.0 * toeMeet;
       ht2 = Math.max(ht2, pad * toeMeet);
     }
     if (ht2 > h + 0.01) {
       h = ht2;
-      m = ht2 > -2.2 ? MAT_SAND : MAT_SEABED;
+      // Mark as sand even when deep so water shader can paint soft tan haze
+      m = ht2 > -3.4 ? MAT_SAND : MAT_SEABED;
     }
   }
 
@@ -582,12 +605,12 @@ export function terrainSample(x: number, z: number, S: Float32Array, o: number, 
     }
   }
 
-  // --- west lagoon (shallow pocket; anchored — no wave-dir jump) ---
-  if (t > 0.12 && t < 0.88 && x < TOMB_X - 4) {
-    const bay = bump(x, TOMB_X - 20, 20) * bump(z, 12, 38);
-    if (bay > 0.04) {
-      const hb = -0.6 - 2.2 * bay + 0.55 * sandGate + S[o + 11];
-      if (hb > h && h < 1.8) { h = Math.max(h, hb); if (h < 0.35) m = h > -1.5 ? MAT_SAND : MAT_SEABED; }
+  // --- west lagoon (soft shallow pocket west of path — only after mid bar; never a sand rectangle) ---
+  if (t > 0.18 && t < 0.82 && x < TOMB_X - 8 && midBar > 0.25) {
+    const bay = bump(x, TOMB_X - 22, 14) * bump(z, 14, 28) * (0.7 + 0.3 * noise2(x * 0.08, z * 0.08));
+    if (bay > 0.08) {
+      const hb = -1.4 - 1.6 * bay + 0.35 * midBar + S[o + 11];
+      if (hb > h && h < 1.2) { h = Math.max(h, hb); m = MAT_SEABED; }
     }
   }
 
@@ -636,22 +659,23 @@ export function planCell(x: number, z: number, s: number, waveDir = 180): number
   if (tip < 1.05 && z > 85) return 1;
   const K = stageConsts(s, waveDir);
   const t = (z - NECK_Z0) / (NECK_Z1 - NECK_Z0);
-  const sandGate = smoothstep(-3.8, -0.4, K.crest);
-  const shoreJoin = smoothstep(-0.9, 1.35, K.crest);
-  if (t > -0.35 && t < 1.35 && sandGate > 0.06) {
+  const sandGate = smoothstep(-4.6, -1.2, K.crest);
+  const midBar = smoothstep(-3.4, -0.6, K.crest);
+  const shoreJoin = smoothstep(-1.1, 0.95, K.crest);
+  if (t > -0.45 && t < 1.45 && sandGate > 0.04) {
     const tc = clamp(t);
-    const midFocus = smoothstep(-0.05, 0.22, tc) * smoothstep(1.05, 0.78, tc);
-    const along = lerp(midFocus, 1.0, shoreJoin);
-    const edgeN = 0.5 * noise2(x * 0.048 + 1.7, z * 0.042) + 0.28 * noise2(x * 0.12, z * 0.1);
-    const cx = TOMB_X + 3.6 * Math.sin(Math.PI * tc) + 2.1 * noise2(z * 0.036, 4.1);
-    const baseHw = 7.2 + 10.5 * sandGate + 4.0 * shoreJoin;
-    const shoreFlare = shoreJoin * (0.35 + 1.1 * (1 - midFocus));
-    const hw = baseHw * (0.86 + 0.3 * Math.sin(Math.PI * tc)) * (1 + shoreFlare) * (1 + 0.28 * edgeN);
-    const dx = (x - cx) / Math.max(3.5, hw);
-    const nearS = smoothstep(1.35, 0.85, massDist(x, z, SOUTH_RING, 11));
-    const nearN = smoothstep(1.35, 0.85, massDist(x, z, NORTH_RING, 10));
+    const shoreFans = Math.pow(smoothstep(0.55, -0.18, tc), 1.15) + Math.pow(smoothstep(0.45, 1.18, tc), 1.15);
+    const along = lerp(0.22 + 0.78 * Math.min(1, shoreFans), 1.0, midBar * 0.85);
+    const edgeN = 0.5 * noise2(x * 0.042 + 1.7, z * 0.038) + 0.28 * noise2(x * 0.11, z * 0.095);
+    const cx = TOMB_X + 4.2 * Math.sin(Math.PI * tc) + 2.4 * noise2(z * 0.034, 4.1);
+    const baseHw = 4.5 + 5.5 * sandGate + 3.5 * midBar + 5.0 * shoreJoin;
+    const shoreFlare = (0.4 + 1.5 * shoreJoin) * Math.pow(Math.abs(2 * tc - 1), 0.9);
+    const hw = baseHw * (0.38 + 0.78 * Math.pow(Math.abs(2 * tc - 1), 1.15)) * (1 + shoreFlare) * (1 + 0.4 * edgeN);
+    const dx = (x - cx) / Math.max(3.0, hw);
+    const nearS = smoothstep(1.45, 0.7, massDist(x, z, SOUTH_RING, 11));
+    const nearN = smoothstep(1.45, 0.7, massDist(x, z, NORTH_RING, 10));
     const toeMeet = Math.max(nearS, nearN) * shoreJoin;
-    if ((Math.abs(dx) < 1.15 * (0.35 + 0.65 * along) || toeMeet > 0.3) && K.crest > -2.4) return 2;
+    if ((Math.abs(dx) < 1.25 * (0.3 + 0.7 * along) || toeMeet > 0.25 || (sandGate > 0.2 && Math.max(nearS, nearN) * shoreFans > 0.45)) && K.crest > -3.8) return 2;
   }
   if (t > -0.05 && t < 1.05 && K.wb > 3.5) {
     const tc = clamp(t);

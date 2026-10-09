@@ -279,10 +279,10 @@ export function landformState(id: LandformId, s: number, out = new THREE.Vector3
       // Mid-channel fixed anchor
       const z = (NECK_Z0 + NECK_Z1) * 0.55;
       let note: string;
-      if (c < -3.2) note = '初期：南北兩島完全分開，中間是開闊水道';
-      else if (c < -0.6) note = '中期：水下沙洲正在堆積，低潮時隱約可見';
-      else if (c < 0.6) note = '沙洲接近露出水面，兩島快將相連';
-      else note = '後期：連島沙洲已露出，南北兩島連成啞鈴形';
+      if (c < -3.6) note = '初期：南北兩島完全分開，中間是開闊水道';
+      else if (c < -1.0) note = '中期：柔軟水下沙洲開始堆積，半透明可見';
+      else if (c < 0.8) note = '沙洲增高接近水面，兩島快將相連';
+      else note = '後期：連島沙洲已露出，自然接岸連成啞鈴形';
       return {
         present: true, pos: out.set(TOMB_X, Math.max(1.4, c + 1.8), z),
         note,
