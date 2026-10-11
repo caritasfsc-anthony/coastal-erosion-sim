@@ -40,3 +40,9 @@ npm run dev
 - [BGS：海岸變化與崩塌](https://www.bgs.ac.uk/news/six-changing-coastlines-and-how-climate-change-could-affect-them/)
 - [NOAA：沿岸流及泥沙搬運](https://oceanservice.noaa.gov/education/tutorial_currents/03coastal2.html)
 - [NOAA：Coastal Impressions，連島沙洲](https://repository.library.noaa.gov/view/noaa/17386/noaa_17386_DS1.pdf)
+
+## 海水與材質
+
+起伏水面採多組方向及頻率的視覺波浪，配合深淺色、反光、岸邊白沫與飛濺。岩石有程序層理、粗糙表面及潮間帶濕潤色差，光照使用柔和陰影。可單獨暫停海浪而繼續切換教學步驟。
+
+水面只按教學幾何判斷遮擋與岸線，沒有流體、繞射或破波求解；不影響岩體及沙量。海浪視覺不能用來推斷侵蝕速率。水面程式為 `src/classroom-water.ts`。
