@@ -353,3 +353,130 @@ body.lesson-focus #sidebar li.selected { opacity: 1; box-shadow: inset 3px 0 0 v
   #lesson-bar { top: 120px; }
   #wave-feedback { bottom: 150px; }
 }
+
+/* Classroom layout: solid, readable panels around an unobstructed field of view. */
+:root { --glass: rgba(12, 33, 44, .96); --glass-strong: rgba(12, 33, 44, .98); --muted: #aec5cc; --radius: 14px; }
+.glass { backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 8px 26px #071a2522; border-color: #d5edf01c; }
+.brand { inset: 0 0 auto; height: 80px; border-radius: 0; padding: 18px 26px; border: 0; background: #0c212c; }
+.brand h1 { font-size: 19px; letter-spacing: .08em; }
+.brand p { font-size: 10px; letter-spacing: .14em; margin-top: 6px; color: #95b3bd; }
+.modes { top: 16px; z-index: 16; background: #172f3a; box-shadow: none; }
+.modes button { padding: 9px 18px; border-radius: 8px; }
+.modes button.active { background: #c2f0e2; color: #123c3e; box-shadow: none; }
+.toolbar { top: 16px; right: 24px; z-index: 16; background: transparent; box-shadow: none; border: 0; }
+.icon-btn { min-width: 40px; padding: 5px 8px; }
+#sidebar { top: 100px; left: 24px; width: 224px; max-height: calc(100dvh - 320px); padding: 18px 10px; }
+.side-head { padding-bottom: 14px; border-bottom: 1px solid var(--line); margin: 0 6px 8px; }
+.side-head h2 { color: #eaf4f6; font-size: 13px; }
+#lf-list li { min-height: 46px; border-radius: 8px; padding: 8px 12px; }
+#lf-list .nm i { margin-top: 4px; font-size: 10px; }
+#lf-list li.deposit .dot { background: var(--sand); }
+#lf-list li.selected { background: #24464c; }
+#lf-list li:not(.present) .dot { box-shadow: none; opacity: .45; }
+#lf-list li:not(.present) .nm { opacity: .65; }
+.side-hint { padding-top: 12px; border-top: 1px solid var(--line); font-size: 10px; line-height: 1.8; }
+#scene-caption { position: absolute; left: 278px; top: 112px; pointer-events: none; color: #163b45; }
+.eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .2em; color: #38817c; }
+#scene-caption h2 { font-size: 29px; letter-spacing: .06em; font-weight: 600; margin: 10px 0 6px; }
+#scene-caption p { font-size: 13px; margin: 0; color: #3b6471; }
+body.lesson-focus #scene-caption, body.story-mode #scene-caption, body.quiz-mode #scene-caption { display: none; }
+#minimap { top: 100px; right: 24px; width: 154px; padding: 12px; }
+#minimap-cv { width: 128px; height: 166px; border: 0; border-radius: 8px; }
+#minimap .mm-head small { font-size: 9px; }
+.mm-legend { font-size: 9px; gap: 5px; }
+#app:has(.panel.open) #minimap { display: none; }
+.panel { right: 24px; top: 100px; width: 340px; max-height: calc(100dvh - 320px); }
+.panel h2 { font-size: 27px; }
+#timeline { left: 24px; right: 24px; bottom: 44px; padding: 18px 22px; min-height: 160px; gap: 20px; }
+.play { width: 44px; height: 44px; background: #c2f0e2; box-shadow: none; }
+.tl-stage { font-size: 15px; }
+.tl-wave { width: 194px; padding-left: 20px; }
+.wave-pad { width: 156px; gap: 3px; }
+.wave-pad .wd { padding: 6px 2px; border-radius: 5px; font-family: inherit; font-size: 10px; }
+.wave-pad .wd.active { background: #c2f0e2; color: #143c3b; border-color: #c2f0e2; box-shadow: none; }
+.wave-hint { font-size: 10px; }
+.tl-energy { width: 136px; }
+.tl-energy label { font-size: 10px; letter-spacing: .06em; }
+.tl-ticks { font-size: 10px; letter-spacing: 0; }
+.tl-marks { display: none; }
+#utility { position: absolute; bottom: 12px; left: 28px; right: 28px; display: flex; justify-content: space-between; z-index: 18; }
+#utility button { border: 0; background: #0c212c; border-radius: 5px; padding: 4px 10px; color: #c5dde2; font-size: 10px; }
+#story { bottom: 220px; width: min(560px, calc(100vw - 40px)); }
+#quiz { top: 100px; }
+.story-dots button { width: 6px; height: 6px; border-radius: 50%; border: 0; padding: 0; background: #69838d; }
+.story-dots button.on { width: 18px; border-radius: 4px; background: var(--aqua); }
+#lesson-bar { top: 100px; max-width: calc(100vw - 650px); }
+#lesson-bar .lb-en { display: none; }
+#lesson-bar #lesson-tip { font-size: 11px; }
+#wave-work { top: 190px; width: min(500px, calc(100vw - 540px)); }
+#app:has(.panel.open) #wave-work { left: calc(50% - 40px); width: max(220px, calc(100vw - 680px)); }
+#toast { top: auto; bottom: 222px; font-size: 12px; }
+body.ww-on #toast { top: auto; }
+#wave-feedback { bottom: 218px; }
+#play-tip, #mini-goal { bottom: 218px; }
+.hs .lbl { background: #0c212cef; box-shadow: 0 3px 14px #0002; backdrop-filter: none; border-radius: 7px; }
+.hs .pin::after { animation: none; }
+button:focus-visible, select:focus-visible, [role=button]:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid #f5d0a0; outline-offset: 4px; }
+#compact-nav { display: none; }
+#about-model { background: #f3f7f5; color: #193b45; border: 0; border-radius: 16px; width: min(620px, calc(100vw - 32px)); max-height: 85dvh; padding: 30px; box-shadow: 0 30px 120px #0006; }
+#about-model::backdrop { background: #02121bb8; }
+#about-model h2 { font-size: 26px; margin: 16px 0; }
+#about-model p { font-size: 14px; line-height: 1.9; }
+#about-model h3 { font-size: 13px; margin-top: 24px; }
+#about-model a { display: block; color: #256e70; font-size: 13px; margin: 12px 0; }
+#about-close { float: right; color: #193b45; border-color: #193b4533; }
+@media (max-width: 1180px) {
+  .brand h1 { font-size: 16px; } .brand { padding-left: 18px; }
+  .modes button { padding: 9px 12px; } .toolbar { right: 14px; } .toolbar .icon-btn span { display: none; }
+  .icon-btn { min-width: 34px; } #lesson-bar { max-width: calc(100vw - 610px); }
+  .tl-energy { width: 110px; }
+}
+@media (max-width: 980px) {
+  .brand { height: 66px; } .brand p { display: block; } .brand h1 { font-size: 17px; }
+  .brand-mark svg { width: 30px; } .toolbar { top: 16px; } .modes { top: 76px; left: 18px; transform: none; }
+  .modes button { flex-direction: row; gap: 6px; padding: 9px 12px; } .modes button small { display: none; }
+  #compact-nav { display: flex; position: absolute; top: 76px; right: 18px; z-index: 16; gap: 8px; align-items: center; }
+  #compact-nav label { display: none; } #compact-nav select { width: 200px; padding: 12px; background: #0c212c; color: #eaf4f6; border: 1px solid #acc4cb44; border-radius: 10px; font-family: inherit; }
+  #sidebar { display: none; } #scene-caption { left: 24px; top: 142px; } #scene-caption h2 { font-size: 24px; }
+  #minimap { display: none; } #timeline { bottom: 42px; left: 14px; right: 14px; padding: 14px; flex-wrap: wrap; gap: 12px; min-height: 0; }
+  .tl-main { flex-basis: calc(100% - 60px); } .tl-wave { display: flex; flex: 1; width: auto; padding: 0; border: 0; }
+  .tl-wave label { justify-content: flex-start; gap: 8px; } .wave-pad { display: flex; flex-wrap: wrap; width: 100%; }
+  .wave-pad .wd { flex: 1; padding: 8px 4px; } .wd-center { display: none; } .wave-hint { min-height: 0; }
+  .tl-energy { display: flex; width: 140px; } .panel { top: 138px; bottom: auto; left: auto; right: 18px; width: 320px; max-height: calc(100dvh - 390px); }
+  #lesson-bar { top: 128px; left: 20px; transform: none; max-width: calc(100vw - 380px); padding: 10px; }
+  #lesson-bar #lesson-tip { display: none; } #lesson-bar b { font-size: 13px; } #lesson-bar .lb-tag { display: none; }
+  #wave-work, #app:has(.panel.open) #wave-work { top: 208px; left: 20px; transform: none; width: calc(100vw - 390px); }
+  #story { bottom: 258px; } #quiz { top: 134px; } #toast, body.ww-on #toast, #wave-feedback { top: auto; bottom: 258px; }
+  #play-tip, #mini-goal { bottom: 258px; }
+}
+@media (max-width: 600px) {
+  .brand { padding: 12px; } .brand h1 { font-size: 15px; } .brand p { font-size: 8px; letter-spacing: .04em; } .brand-mark { display: none; }
+  .toolbar { right: 8px; top: 14px; padding: 0; } .icon-btn { min-width: 30px; padding: 7px 5px; }
+  .modes { top: 76px; left: 12px; right: 12px; justify-content: stretch; } .modes button { flex: 1; justify-content: center; } .modes button span { font-size: 12px; }
+  #compact-nav { top: 130px; left: 12px; right: 12px; } #compact-nav select { width: 100%; padding: 9px; }
+  #scene-caption { top: 188px; left: 20px; } #scene-caption h2 { font-size: 21px; } #scene-caption p { font-size: 12px; } .eyebrow { font-size: 8px; }
+  #timeline { bottom: 40px; left: 10px; right: 10px; padding: 12px; gap: 10px; }
+  .tl-years { display: none; } .tl-head { gap: 8px; margin-bottom: 2px; } .tl-title { font-size: 10px; letter-spacing: 0; }
+  .tl-stage { font-size: 13px; } .play { width: 36px; height: 36px; } .tl-ticks { font-size: 8px; } .tl-ticks span:nth-child(2) { display: none; }
+  .tl-wave { flex-basis: 100%; } .tl-wave label { font-size: 10px; } .wave-pad .wd { padding: 7px 2px; font-size: 10px; }
+  .tl-energy { width: 100%; border: 0; padding: 0; flex-direction: row; align-items: center; gap: 10px; } .tl-energy label { white-space: nowrap; } .tl-energy span { font-size: 10px; white-space: nowrap; }
+  #lesson-bar { top: 176px; left: 12px; right: 12px; max-width: none; justify-content: space-between; padding: 7px 10px; }
+  .panel { left: 12px; right: 12px; top: 224px; width: auto; max-height: calc(100dvh - 510px); padding: 16px; }
+  #wave-work, #app:has(.panel.open) #wave-work { display: none; }
+  #story, #quiz { width: calc(100vw - 24px); left: 12px; transform: none; padding: 14px; }
+  #story.open, #quiz.open { transform: none; } #story { bottom: 278px; max-height: calc(100dvh - 460px); overflow: auto; }
+  #quiz { top: 176px; max-height: calc(100dvh - 450px); overflow: auto; } #story p { font-size: 12px; line-height: 1.7; } #story h2 { font-size: 18px; }
+  .story-dots { display: none; } #toast, body.ww-on #toast, #wave-feedback { bottom: 280px; max-width: calc(100vw - 24px); white-space: normal; }
+  #play-tip, #mini-goal { bottom: 278px; } #utility { left: 12px; right: 12px; }
+}
+@media (max-height: 650px) and (min-width: 601px) {
+  #scene-caption { display: none; } #sidebar { max-height: calc(100dvh - 280px); } .panel { max-height: calc(100dvh - 280px); }
+  #timeline { min-height: 0; padding: 10px 18px; } #story { max-height: calc(100dvh - 300px); overflow: auto; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+#timeline { transform: none; width: auto; }
+.panel:not(.open), #story:not(.open), #quiz:not(.open), #loader.done { visibility: hidden; }
+.hs.hidden { visibility: hidden; }
+#minimap { cursor: default; }
+@media (min-width: 981px) { #lesson-bar { left: 276px; transform: none; max-width: calc(100vw - 660px); gap: 8px; } }
+@media (min-width: 981px) { #app:has(.panel.open) #wave-work { left: 276px; transform: none; width: calc(100vw - 660px); } }

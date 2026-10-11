@@ -5,7 +5,7 @@ import { bump, clamp, fbm2, lerp, noise2, smoothstep } from './noise';
 
 export const H = 32; // typical hill / cliff height scale
 /** NE rocky tip axis (海蝕洞→拱→柱 sequence). */
-export const HX = 28;
+export const HX = 42;
 /** Primary 海蝕隙 on the north rocky coast. */
 export const GX = -18;
 /** Legacy alias — island is now the whole dumbbell; kept for vegetation sampling. */
@@ -61,11 +61,11 @@ export function stackGeom(k: number, p: number) {
   const seg = SEGMENTS[k];
   const zc = caveZ(k);
   // Fixed offshore park once the arch collapses — never slides while scrubbing the timeline.
-  const r = lerp(Math.min(headHalfWidth(zc + 4), 5.0), 3.4, smoothstep(0.65, 0.97, p));
-  const gapClear = 16; // readable water channel between remaining tip & stack
-  const zs = seg.b + 26; // anchored world Z (stable hotspot / mesh)
+  const r = lerp(Math.min(headHalfWidth(zc + 4), 4.0), 2.8, smoothstep(0.65, 0.97, p));
+  const gapClear = 4; // readable water channel between remaining tip & stack
+  const zs = seg.b - 4.5; // anchored world Z (stable hotspot / mesh)
   const z0 = zs - r - 1.0;
-  const zEnd = zs + r + 2.5;
+  const zEnd = seg.b;
   const cutSea = Math.min(z0 - gapClear, seg.b - 2);
   return { zs, r, z0, zEnd, cutSea, gapClear };
 }
@@ -347,13 +347,13 @@ export function waveLessonTip(focus: FocusId, wd: number): string {
       Math.abs(t.dx) >= Math.abs(t.dz)
         ? (t.dx > 0 ? '東' : '西')
         : (t.dz > 0 ? '北' : '南');
-    return `浪從${name}來 → 沙積喺背風側（偏${lee}）`;
+    return `浪從${name}來 → 偏${lee}側較受掩蔽（沉積仍需泥沙供應）`;
   }
   if (focus === 'cliff' || focus === 'platform') {
     const hit = Math.max(0, t.dz); // waves from S travel +Z → hit south face
     return hit > 0.45
       ? `浪從${name}來 → 南岸海崖／凹地受打加強`
-      : `浪從${name}來 → 南岸掩護，凹地／後退變慢`;
+      : `浪從${name}來 → 南岸直接受浪較弱`;
   }
   if (focus === 'geo') {
     const nHit = Math.max(0, -t.dz); // waves from N travel −Z → hit north face
@@ -371,9 +371,9 @@ export function waveLessonTip(focus: FocusId, wd: number): string {
   // overview
   const shore =
     Math.abs(t.dx) > Math.abs(t.dz)
-      ? (t.dx > 0 ? '東岸' : '西岸')
-      : (t.dz > 0 ? '北岸' : '南岸');
-  return `浪從${name}來 → ${shore}受蝕較強 · 背風側較易積沙`;
+      ? (t.dx > 0 ? '西岸' : '東岸')
+      : (t.dz > 0 ? '南岸' : '北岸');
+  return `浪從${name}來 → ${shore}直接受浪較強 · 掩蔽區較利沉積`;
 }
 
 export function stageConsts(s: number, waveDir = 180, focus: FocusId = null) {
@@ -742,12 +742,12 @@ export function groundRaw(x: number, z: number, K: StageConsts): number {
 }
 
 /** Plan-view land/sand occupancy for the top-view minimap (0=water, 1=rock, 2=sand). */
-export function planCell(x: number, z: number, s: number, waveDir = 180, focus: FocusId = null): number {
+export function planCell(x: number, z: number, s: number, waveDir = 180, focus: FocusId = null, model?: StageConsts): number {
   const core = islandCore(x, z);
   if (core > 0.45) return 1;
   const tip = Math.hypot((x - HX) / 14, (z - 118) / 28);
   if (tip < 1.05 && z > 85) return 1;
-  const K = stageConsts(s, waveDir, focus);
+  const K = model ?? stageConsts(s, waveDir, focus);
   const t = (z - NECK_Z0) / (NECK_Z1 - NECK_Z0);
   const sandGate = smoothstep(-4.6, -1.2, K.crest);
   const midBar = smoothstep(-3.4, -0.6, K.crest);

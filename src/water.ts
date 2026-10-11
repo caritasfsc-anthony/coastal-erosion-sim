@@ -131,7 +131,7 @@ void main(){
   body += shallowSoft*0.12*smoothstep(0.2, 1.0, vCrest)*max(dot(uSunDir, -V)*0.5+0.5, 0.0)*(1.0 - 0.85*sandVis);
   vec3 col = mix(body, sky, fres*0.75*(1.0 - 0.55*sandVis));
   vec3 H = normalize(uSunDir + V);
-  float spec = pow(max(dot(N,H),0.0), 600.0)*5.0 + pow(max(dot(N,H),0.0), 60.0)*0.25;
+  float spec = pow(max(dot(N,H),0.0), 180.0)*0.65 + pow(max(dot(N,H),0.0), 40.0)*0.12;
   col += uSunColor*spec;
   // foam: shoreline wash + travelling surf bands + crest whitecaps
   float n1 = fbm(q*0.12 + vec2(uTime*0.04, uTime*0.07));

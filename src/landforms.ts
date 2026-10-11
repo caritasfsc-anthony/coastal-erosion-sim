@@ -79,8 +79,8 @@ export const LANDFORMS: Landform[] = [
       '裂縫被擴闊、加深，在崖腳附近形成洞穴——海蝕洞。',
       '洞穴繼續向岬角內部伸延。',
     ],
-    processes: ['水力作用', '磨蝕作用', '溶蝕作用'],
-    sequence: '海崖 → 【海蝕洞】 → 海蝕拱 → 海蝕柱 → 海蝕殘柱',
+    processes: ['水力作用', '磨蝕作用'],
+    sequence: '岬角裂縫 → 【海蝕洞】 → 海蝕拱 → 海蝕柱 → 海蝕殘柱',
     example: '教學示意；可對照西貢果洲群島等地。',
     bestStage: 0.3, view: [38, 8, 22],
     quiz: '海浪沿岬角的節理及斷層侵蝕，在崖腳形成的洞穴是？',
@@ -95,7 +95,7 @@ export const LANDFORMS: Landform[] = [
       '拱底持續被侵蝕擴大，拱頂變得愈來愈薄。',
     ],
     processes: ['水力作用', '磨蝕作用'],
-    sequence: '海崖 → 海蝕洞 → 【海蝕拱】 → 海蝕柱 → 海蝕殘柱',
+    sequence: '岬角裂縫 → 海蝕洞 → 【海蝕拱】 → 海蝕柱 → 海蝕殘柱',
     example: '教學序列示意；可對照西貢吊鐘洲等地。',
     bestStage: 0.5, view: [42, 12, 28],
     quiz: '岬角兩側的海蝕洞貫通後形成的拱門狀地貌是？',
@@ -109,9 +109,9 @@ export const LANDFORMS: Landform[] = [
       '向海一側的岩石與岬角分離，孤立於海中，成為海蝕柱。',
     ],
     processes: ['水力作用', '磨蝕作用', '風化作用'],
-    sequence: '海崖 → 海蝕洞 → 海蝕拱 → 【海蝕柱】 → 海蝕殘柱',
+    sequence: '岬角裂縫 → 海蝕洞 → 海蝕拱 → 【海蝕柱】 → 海蝕殘柱',
     example: '教學序列示意；可對照西貢破邊洲等地。',
-    bestStage: 0.75, view: [40, 16, 36],
+    bestStage: 0.75, view: [70, 38, 66],
     quiz: '海蝕拱的拱頂崩塌後，遺下孤立於海中的岩柱是？',
   },
   {
@@ -123,19 +123,19 @@ export const LANDFORMS: Landform[] = [
       '只剩下低矮的殘柱，高潮時可能被海水淹沒，成為浪蝕平台的一部分。',
     ],
     processes: ['水力作用', '磨蝕作用'],
-    sequence: '海崖 → 海蝕洞 → 海蝕拱 → 海蝕柱 → 【海蝕殘柱】',
+    sequence: '岬角裂縫 → 海蝕洞 → 海蝕拱 → 海蝕柱 → 【海蝕殘柱】',
     example: '教學序列的最終階段。',
-    bestStage: 1.0, view: [32, 14, 32],
+    bestStage: 1.0, view: [60, 32, 58],
     quiz: '海蝕柱倒塌後剩下、高潮時或會被淹沒的低矮岩墩是？',
   },
   {
     id: 'beach', zh: '海灘', en: 'Beach', tag: '沉積地貌',
-    short: '海灣內波浪能量較低，沙粒被沉積在灣頭而成的海灘。轉浪向時，背風側海灘會加厚。',
+    short: '海灣內波浪能量較低，沙粒被沉積在灣頭而成的海灘。本模型以不同浪向的沉積情境作比較。',
     steps: [
       '海浪在岬角處折射，能量集中於岬角，海灣內能量分散。',
-      '海灣成為低能量環境，以建設性海浪為主（進流強、回流弱）。',
-      '侵蝕得來的沙粒及卵石被搬運到灣頭沉積。',
-      '沉積物不斷累積，海灘逐漸變闊，呈新月形。',
+      '在較低能量、泥沙供應充足的情況下，搬運能力減弱，較有利沉積；風暴仍可侵蝕海灘。',
+      '泥沙可由岩岸侵蝕、河流或近岸海床供應，再由沿岸流與波浪搬運。',
+      '沉積多於移走的物料時，海灘才會增長；形狀亦受海岸線、浪向及泥沙供應影響。',
     ],
     processes: ['波浪折射', '沿岸漂移', '沉積作用'],
     sequence: '岩岸被侵蝕的物料成為海灘的來源——「岬角受蝕、海灣沉積」。',
@@ -148,13 +148,13 @@ export const LANDFORMS: Landform[] = [
     short: '起初南北是兩個完全分開的島；泥沙在島間掩蔽區堆積，先成水下沙洲，再露出水面，把兩島連成啞鈴形。',
     steps: [
       '起初南北是兩座完全獨立的島，中間是開闊水道。',
-      '海浪繞過兩島發生折射，島與島之間成為波浪能量較低的掩蔽區。',
-      '沿岸漂移帶來的泥沙在水道中堆積，先形成低潮可見的水下沙洲。',
-      '沙洲繼續增高並露出水面，把兩島連接成啞鈴形。轉「海浪方向」：泥沙會移向／加厚喺背風側。',
+      '波浪受水深影響而折射，亦會繞過島嶼發生繞射，在特定條件下形成較低能量的掩蔽區。',
+      '沿岸漂移帶來的泥沙在水道中堆積，先形成水下沙洲；增高至低潮位以上後，才可在低潮露出。',
+      '沙洲繼續增高並露出水面，把兩島連接成啞鈴形。浪向按鈕比較長期情境，並非泥沙瞬間搬移；需持續的泥沙供應及適合水深。',
     ],
     processes: ['波浪折射', '沿岸漂移', '沉積作用'],
     sequence: '由侵蝕得來的沉積物，在兩島之間的掩蔽區重新堆積；東側常伴生灣頭海灘。',
-    example: '經典連島沙洲：兩島＋中央沙洲（本模擬為簡化教學樣本）。',
+    example: '連島沙洲可連接島與陸地，亦可連接兩島；本模型採用兩島相連的簡化情境。',
     bestStage: 0.92, view: [110, 85, 10],
     quiz: '起初分開的兩島之間，泥沙堆積並露出水面、把兩島連接起來的沙洲是？',
   },
@@ -254,7 +254,7 @@ export function landformState(id: LandformId, s: number, out = new THREE.Vector3
       const k = 0;
       const p = phase(s, k);
       const st = stackGeom(k, Math.max(p, 0.7));
-      if (p < 0.64) return { present: false, pos: out.set(HX, headTop(HX, st.zs) + 1.5, st.zs), note: '海蝕拱尚未崩塌' };
+      if (p < 0.64 || p >= 0.9) return { present: false, pos: out.set(HX, headTop(HX, st.zs) + 1.5, st.zs), note: p >= 0.9 ? '已降低成海蝕殘柱' : '海蝕拱尚未崩塌' };
       return { present: true, pos: out.set(HX, headTop(HX, st.zs) + 2.2, st.zs), note: '孤立於海中（離岸可見空隙）' };
     }
     case 'stump': {
@@ -295,11 +295,11 @@ export function stageWhenPresent(id: LandformId): number {
   return byId(id).bestStage;
 }
 
-export const SEQUENCE: LandformId[] = ['cliff', 'cave', 'arch', 'stack', 'stump'];
+export const SEQUENCE: LandformId[] = ['cave', 'arch', 'stack', 'stump'];
 
 export const PROCESSES = [
   { zh: '水力作用', en: 'Hydraulic action', d: '海浪衝擊岩石，把空氣壓入裂縫；退浪時壓力驟降，反覆令裂縫擴大、岩石碎裂。' },
   { zh: '磨蝕作用', en: 'Abrasion', d: '海浪挾帶砂石、卵石撞擊及摩擦岩岸，像砂紙一樣把岩石磨去。' },
-  { zh: '溶蝕作用', en: 'Solution', d: '海水中的弱酸溶解石灰岩等可溶性岩石。' },
-  { zh: '磨損作用', en: 'Attrition', d: '被搬運的石塊互相碰撞，變得愈來愈細、愈來愈圓滑。' },
+  { zh: '溶蝕作用', en: 'Solution', d: '海水與可溶性岩石（例如石灰岩）發生化學作用，使部分礦物溶解；效果取決於岩性及海水化學，並非所有岩岸都同樣明顯。' },
+  { zh: '磨損作用', en: 'Attrition', d: '被搬運的石塊互相碰撞，變得愈來愈細、愈來愈圓滑。主要改變沉積物大小和形狀，與直接磨蝕崖壁不同。' },
 ];
