@@ -1,32 +1,27 @@
-# 海岸侵蝕實驗室｜Coastal Erosion Lab
+# 海岸地貌教室
 
-繁體中文（香港）的 Three.js 互動地理教學工具：探索九個地貌、觀看分章解說，再以挑戰模式辨認地貌。
+繁體中文（香港）互動教學工具。五個獨立單元涵蓋海崖、浪蝕平台、海蝕洞、拱、柱、殘柱、海蝕隙、海灘與連島沙洲。
 
 [開啟網站](https://caritasfsc-anthony.github.io/coastal-erosion-sim/)
 
 ## 課堂使用
 
-1. 選擇地貌專題；手機和平板可使用上方選單。
-2. 拖動演變階段或播放，觀察地貌家族的變化。
-3. 比較來浪方向，切換潮汐觀察平台與沙洲。
-4. 使用「模型與資料來源」閱讀適用範圍。
+選擇單元，再用步驟按鈕、上一／下一步或自動逐步播放。每一步配有形成過程、觀察指引、原因與模型取捨。課堂提問提供即時解釋。
 
-拖曳旋轉、滾輪或雙指縮放。地貌選項可用鍵盤 Tab、Enter 操作。空白鍵播放，左右方向鍵調整演變階段（控制元件聚焦時保留原生鍵盤操作）。
+立體、正面剖視、俯視可互換；拖曳旋轉、滾輪／雙指縮放。關閉海水可看水下地形，原有輪廓可比較侵蝕前後。鍵盤 Tab 操作控制項；非控制項聚焦時左右方向鍵換步。
 
-## 模型的適用範圍
+## 模型原則
 
-- 虛構海岸概念模型，並非實際島嶼、測量或 GIS 地形。
-- 百分比為教學進度，不代表固定年期、侵蝕速率或預測。
-- 海崖與平台、洞拱柱、沉積地貌為不同過程，可同時發生；並非九個地貌的一條必然序列。
-- 來浪方向切換比較不同長期情境，不模擬泥沙瞬間搬移。沒有求解波浪折射／繞射、泥沙收支或搬運速率。
-- 波浪強度只影響水面、浪花及濕潤效果；潮汐只控制水位。
-- 連島沙洲需要適合水深、波浪及泥沙供應，不是任何兩島都必然相連。
-- 南岸凹地使用高度場近似，未建立真實懸垂崖壁的力學模型。
-- 小地圖是地貌位置示意，不是精確岸線或潮汐淹浸圖。
+- 岩體是有厚度的剖切幾何，海蝕凹地可懸垂。崖頂不升高，侵蝕步驟只減少岩體。
+- 洞穴有盡頭，拱是貫通開口。海蝕柱與殘柱保持原位，是原有岩岬的殘餘。
+- 海灘有固定基底及鬆散沙剖面。風暴與較平靜情境重新分配岸上／近岸沙量；固定沿岸寬度下剖面面積守恆。
+- 沿岸漂移單獨展示路徑，不改變封閉剖面沙量。連島沙洲另假設外部持續供沙，與海灘封閉系統不同。
+- 五個情境獨立，不是所有海岸的必然地質序列。步驟無實際年期或相等時間意義。
+- 波線、箭頭、固定水位與規則岩體為解說用途；不求解水流、岩體力學、潮汐或侵蝕速率。比例無量綱，不能作預測。
 
-## 本機開發與驗證
+## 開發
 
-需要 Node.js 22.18+ 及支援 WebGL2 的瀏覽器。
+Node.js 22.18+，WebGL2 瀏覽器。
 
 ```sh
 npm ci
@@ -35,13 +30,13 @@ npm run build
 npm run dev
 ```
 
-模型回歸檢查涵蓋來浪方位、九個專題建議階段、柱／殘柱互斥、原岬角內的固定殘柱位置、專題隔離，以及多個階段的有效網格。`.model-check/` 是檢查產生的暫存檔，已忽略。
+入口為 `src/classroom.ts`，教學資料及純模型為 `src/lessons.ts`，實體幾何為 `src/classroom-scene.ts`，樣式為 `src/classroom.css`。先前島嶼模擬檔案保留作歷史參考，已不由入口載入。
 
-文字內容在 `src/landforms.ts` 與 `src/story.ts`。正式建置使用 `/coastal-erosion-sim/` 路徑，推送 main 後由原有 GitHub Pages workflow 部署。
+`npm test` 驗證崖體積單調減少、崖頂高度固定、海灘沙剖面面積守恆、風暴搬沙方向、水下沙壩水位與教學資料完整性。正式推送 main 後由 GitHub Pages workflow 部署。
 
-## 教學參考
+## 參考
 
-- [BGS：侵蝕](https://www.bgs.ac.uk/discovering-geology/geological-processes/erosion/)
-- [BGS：沉積](https://www.bgs.ac.uk/discovering-geology/geological-processes/deposition/)
-- [NOAA：沿岸流與泥沙搬運](https://oceanservice.noaa.gov/education/tutorial_currents/03coastal2.html)
+- [BGS：崖腳侵蝕及海岸滑坡](https://www.bgs.ac.uk/geology-projects/landslides/aldbrough-observatory/)
+- [BGS：海岸變化與崩塌](https://www.bgs.ac.uk/news/six-changing-coastlines-and-how-climate-change-could-affect-them/)
+- [NOAA：沿岸流及泥沙搬運](https://oceanservice.noaa.gov/education/tutorial_currents/03coastal2.html)
 - [NOAA：Coastal Impressions，連島沙洲](https://repository.library.noaa.gov/view/noaa/17386/noaa_17386_DS1.pdf)
