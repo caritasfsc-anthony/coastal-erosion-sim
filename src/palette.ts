@@ -29,9 +29,9 @@ export function rockColor(out: RGB, x: number, y: number, z: number, ny: number)
   const steep = smoothstep(0.7, 0.18, ny);
   // strong horizontal strata — especially readable on cliff faces
   const band = 0.5 + 0.5 * Math.sin(y * 1.9 + n * 2.2);
-  mix(out, PAL.rockA, PAL.rockB, band * 0.92 + 0.06 * n2);
+  mix(out, PAL.rockA, PAL.rockB, band * 0.35 + 0.06 * n2);
   const light = smoothstep(0.7, 0.97, Math.sin(y * 0.9 + 1.1 + n * 0.55));
-  mixInto(out, PAL.rockLite, light * (0.4 + 0.4 * steep));
+  mixInto(out, PAL.rockLite, light * (0.16 + 0.16 * steep));
   // cool grey granite facets on steep faces
   mixInto(out, PAL.rockDark, steep * (0.25 + 0.2 * Math.abs(n2)));
   // subtle top highlight (no vegetation)

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { createWorld } from './scene';
 import { LANDFORMS, PROCESSES, SEQUENCE, byId, geoFrame, landformState, type LandformId } from './landforms';
 import { OVERVIEW, STORY } from './story';
-import { GX, HX, MANTOU, SEGMENTS, caveZ, geoHalfWidth, geoParams, geoX, groundRaw, headHalfWidth, northCliff, phase, planCell, southCliff, southCoast0, stackGeom, stageConsts, waveTravel, waveLessonTip, type FocusId } from './world';
+import { GX, HX, INNER, MANTOU, SEGMENTS, caveZ, geoHalfWidth, geoParams, geoX, groundRaw, headHalfWidth, lessonStages, northCliff, phase, southCliff, southCoast0, stackGeom, stageConsts, waveTravel, waveLessonTip, type FocusId } from './world';
 import { clamp } from './noise';
 import { activeStrike, strikeFor, type Strike } from './waveWork';
 import { wetUniforms } from './wet';
@@ -27,21 +27,29 @@ W.scene.add(cliffGuide.group);
 // geometry is rebuilt in a worker so dragging the timeline never blocks rendering
 const worker = new Worker(new URL('./buildWorker.ts', import.meta.url), { type: 'module' });
 let reqId = 0, inflight = false, requested = -1;
+let rebuildQueued = false;
 let firstBuild: (() => void) | null = null;
 worker.onmessage = (e: MessageEvent) => {
-  const { s, head, terrain, geo } = e.data;
+  const { s, head, terrain, geo, focus, wd } = e.data;
+  if (focus !== app.focus || wd !== app.waveDir) {
+    inflight = false; requestBuild(app.stage); return;
+  }
   land.apply(head, terrain, geo);
-  debris.update(s);
-  guide.update(s);
-  cliffGuide.update(s);
-  detectCollapses(app.built, s);
+  const stages = lessonStages(app.focus, s);
+  debris.update(stages.cliff);
+  guide.update(stages.geo);
+  cliffGuide.update(stages.cliff);
+  if (!app.focus || app.focus === 'cliff' || app.focus === 'platform' || ['cave', 'arch', 'stack', 'stump'].includes(app.focus)) detectCollapses(app.built, s);
   app.built = s;
   inflight = false;
   updateSplashSources(s);
   updateLandformStates();
+  dirtyMinimap = true;
   if (firstBuild) { firstBuild(); firstBuild = null; }
+  if (rebuildQueued) { rebuildQueued = false; requestBuild(app.stage); }
 };
 function requestBuild(s: number) {
+  if (inflight) { rebuildQueued = true; return; }
   requested = s;
   inflight = true;
   worker.postMessage({ s, wd: app.waveDir, focus: app.focus, id: ++reqId });
@@ -83,8 +91,8 @@ function setStage(s: number) {
   if (Math.abs(clamp(s) - lastStageVal) > 1e-4) { lastStageVal = clamp(s); lastStageChange = performance.now(); }
   const name = app.stage < 0.34 ? '初期' : app.stage < 0.67 ? '中期' : '後期';
   $('stage-name').textContent = `${name} · ${Math.round(app.stage * 100)}%`;
-  const years = Math.round((app.stage * 8000) / 100) * 100;
-  $('stage-years').textContent = `經過約 ${years.toLocaleString('zh-HK')} 年（示意）`;
+  $('stage-years').textContent = '概念示意 · 非實際年期';
+  slider.setAttribute('aria-valuetext', `${name}，${Math.round(app.stage * 100)}%，概念示意`);
   if (typeof checkMiniGoal === 'function') checkMiniGoal();
   dirtyMinimap = true;
 }
@@ -113,6 +121,7 @@ function focusLandform(id: LandformId, stage = app.stage, dur = 1.8) {
   const target = st.pos.clone();
   // For cliff teaching beats, keep the waterline / notch in frame
   if (id === 'cliff' && stage < 0.35) target.y = Math.min(target.y, 3.2);
+  else if (id === 'stack' || id === 'stump') target.y = 5;
   else target.y = Math.max(1.5, target.y * 0.6);
   const off = new THREE.Vector3(...lf.view);
   flyTo(target.clone().add(off), target, dur);
@@ -195,7 +204,7 @@ function currentStrike(): Strike | null {
     const st = STORY[storyIdx];
     return st.focus ? strikeFor(st.focus, app.stage, st.stage) : activeStrike(app.stage);
   }
-  return activeStrike(app.stage);
+  return app.focus ? strikeFor(app.focus, app.stage, byId(app.focus).bestStage) : activeStrike(app.stage);
 }
 function cuesWanted(now: number): boolean {
   if (app.mode === 'quiz') return false;
@@ -264,12 +273,20 @@ function detectCollapses(prev: number, s: number) {
   }
 }
 
+function stageFor(id: LandformId, s: number) {
+  const stages = lessonStages(app.focus, s);
+  return id === 'cliff' || id === 'platform' ? stages.cliff
+    : id === 'geo' ? stages.geo : id === 'beach' || id === 'tombolo' ? stages.sand : stages.head;
+}
+
 // ------------------------------------------------------------------ hotspots
 interface HS { id: LandformId; el: HTMLDivElement; pos: THREE.Vector3; present: boolean; note: string; }
 const hotspots: HS[] = [];
 const labelsEl = $('labels');
 for (const lf of LANDFORMS) {
   const el = document.createElement('div');
+  el.tabIndex = 0; el.setAttribute('role', 'button'); el.setAttribute('aria-label', lf.zh);
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onHotspotClick(lf.id); } });
   el.className = 'hs' + (lf.tag === '沉積地貌' ? ' deposit' : '');
   el.innerHTML = `<div class="pin"></div><div class="lbl"><b>${lf.zh}</b><i>${lf.en}</i></div>`;
   el.addEventListener('click', (e) => { e.stopPropagation(); onHotspotClick(lf.id); });
@@ -279,9 +296,10 @@ for (const lf of LANDFORMS) {
 
 function updateLandformStates() {
   for (const h of hotspots) {
-    const st = landformState(h.id, app.built, h.pos);
+    const st = landformState(h.id, stageFor(h.id, app.built), h.pos);
     h.present = st.present; h.note = st.note;
     h.el.classList.toggle('absent', !st.present);
+    h.el.tabIndex = st.present ? 0 : -1;
   }
   for (const li of listItems) li.el.classList.toggle('present', hotspots.find((h) => h.id === li.id)!.present);
   if (app.selected) renderInfoStatus(app.selected);
@@ -337,7 +355,9 @@ for (const lf of LANDFORMS) {
   const li = document.createElement('li');
   if (lf.tag === '沉積地貌') li.classList.add('deposit');
   li.innerHTML = `<span class="dot"></span><span class="nm"><b>${lf.zh}</b><i>${lf.en}</i></span>${lf.bonus ? '<span class="bonus">延伸</span>' : ''}<span class="seen">✓</span>`;
+  li.setAttribute('role', 'button'); li.tabIndex = 0;
   li.addEventListener('click', () => selectLandform(lf.id, true));
+  li.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectLandform(lf.id, true); } });
   listEl.appendChild(li);
   listItems.push({ id: lf.id, el: li });
 }
@@ -356,6 +376,7 @@ const info = $('info');
 function selectLandform(id: LandformId, focus: boolean) {
   const lf = byId(id);
   app.selected = id;
+  ($('landform-picker') as HTMLSelectElement).value = id;
   app.visited.add(id);
   $('found-count').textContent = `${app.visited.size} / ${LANDFORMS.length} 已探索`;
   for (const li of listItems) {
@@ -375,7 +396,7 @@ function selectLandform(id: LandformId, focus: boolean) {
   if (SEQUENCE.includes(id)) {
     seqEl.innerHTML = `<div class="seq">${SEQUENCE.map((s, i) =>
       `${i ? '<span class="arr">→</span>' : ''}<button data-id="${s}" class="${s === id ? 'cur' : ''}">${byId(s).zh}</button>`).join('')}</div>
-      <p class="seq-text">${id === 'cliff' ? lf.sequence : '岬角的侵蝕序列：同一段岬角會隨時間依次經歷以上階段。'}</p>`;
+      <p class="seq-text">${id === 'cliff' ? lf.sequence : '岬角的可能演變路徑；需合適節理與岩性，並非所有岬角都必然經歷每一步。'}</p>`;
     seqEl.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
       const nid = (b as HTMLElement).dataset.id as LandformId;
       selectLandform(nid, true);
@@ -398,7 +419,7 @@ function selectLandform(id: LandformId, focus: boolean) {
   }
 }
 function renderInfoStatus(id: LandformId) {
-  const st = landformState(id, app.stage);
+  const st = landformState(id, stageFor(id, app.stage));
   const el = $('info-status');
   el.classList.toggle('absent', !st.present);
   el.innerHTML = st.present
@@ -467,8 +488,8 @@ function enterLesson(id: LandformId) {
   $('lesson-name').textContent = lf.zh;
   $('lesson-en').textContent = lf.en;
   const tip =
-    id === 'tombolo' || id === 'beach' ? '轉浪向：沙會移去／加厚喺背風側'
-    : id === 'cliff' || id === 'platform' ? '轉浪向：向風南岸凹地／後退會加強'
+    id === 'tombolo' || id === 'beach' ? '比較長期浪向情境 · 沉積需持續泥沙供應'
+    : id === 'cliff' || id === 'platform' ? '比較南岸直接受浪 · 拖動階段觀察凹地與後退'
     : id === 'geo' ? '轉浪向：北向浪令海蝕隙間浪湧更猛'
     : '轉浪向：向風一側浪花同侵蝕更明顯';
   $('lesson-tip').textContent = `一次只睇「${lf.zh}」· ${tip}`;
@@ -498,6 +519,8 @@ const slider = $('stage') as HTMLInputElement;
 slider.addEventListener('input', () => { stageTween = null; setPlaying(false); setStage(Number(slider.value) / 1000); });
 function setPlaying(p: boolean) {
   app.playing = p;
+  $('play').setAttribute('aria-label', p ? '暫停地貌演變' : '播放地貌演變');
+  $('play').setAttribute('aria-pressed', String(p));
   $('play-icon').innerHTML = p ? '<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>' : '<path d="M7 5l12 7-12 7z"/>';
 }
 $('play').addEventListener('click', () => {
@@ -534,10 +557,10 @@ $('btn-labels').addEventListener('click', () => {
   const on = document.body.classList.toggle('no-labels');
   $('btn-labels').classList.toggle('active', !on);
 });
-$('btn-home').addEventListener('click', () => { exitLesson(false); flyOverview(1.8); });
+$('btn-home').addEventListener('click', () => { closeInfo(); exitLesson(false); flyOverview(1.8); });
 
 window.addEventListener('keydown', (e) => {
-  if ((e.target as HTMLElement).tagName === 'INPUT' && e.key !== ' ') return;
+  if ((e.target as HTMLElement).closest('input, select, button, a, textarea, [contenteditable]')) return;
   if (e.key === ' ') { e.preventDefault(); $('play').click(); }
   else if (e.key === 'ArrowRight') { setPlaying(false); animateStage(app.stage + 0.05, 0.5); }
   else if (e.key === 'ArrowLeft') { setPlaying(false); animateStage(app.stage - 0.05, 0.5); }
@@ -567,15 +590,15 @@ document.querySelectorAll<HTMLButtonElement>('#modes button').forEach((b) =>
 let storyIdx = 0;
 let autoTimer = 0;
 const dots = $('story-dots');
-dots.innerHTML = STORY.map(() => '<i></i>').join('');
-dots.querySelectorAll('i').forEach((d, i) => d.addEventListener('click', () => { stopAuto(); gotoStory(i); }));
+dots.innerHTML = STORY.map((st, i) => `<button type="button" aria-label="第 ${i + 1} 章：${st.title}"></button>`).join('');
+dots.querySelectorAll('button').forEach((d, i) => d.addEventListener('click', () => { stopAuto(); gotoStory(i); }));
 function gotoStory(i: number) {
   storyIdx = clamp(i, 0, STORY.length - 1);
   const st = STORY[storyIdx];
   $('story-step').textContent = `第 ${storyIdx + 1} / ${STORY.length} 章`;
   $('story-title').textContent = st.title;
   $('story-text').textContent = st.text;
-  dots.querySelectorAll('i').forEach((d, j) => d.classList.toggle('on', j === storyIdx));
+  dots.querySelectorAll('button').forEach((d, j) => d.classList.toggle('on', j === storyIdx));
   ($('story-prev') as HTMLButtonElement).disabled = storyIdx === 0;
   $('story-next').textContent = storyIdx === STORY.length - 1 ? '開始探索 ›' : '下一步 ›';
   animateStage(st.stage, 2.2);
@@ -699,7 +722,7 @@ function cliffGuideWanted(now: number): boolean {
 // ------------------------------------------------------------------ top-view minimap (右上角)
 const mmCv = $('minimap-cv') as HTMLCanvasElement;
 const mmCtx = mmCv.getContext('2d')!;
-let lastMmStage = -1, lastMmWd = -1;
+let lastMmStage = -1, lastMmWd = -1, lastMmTide = -99;
 const MM_WORLD = { x0: -90, z0: -180, x1: 90, z1: 170 };
 function worldToMm(x: number, z: number): [number, number] {
   const u = (x - MM_WORLD.x0) / (MM_WORLD.x1 - MM_WORLD.x0);
@@ -707,18 +730,25 @@ function worldToMm(x: number, z: number): [number, number] {
   return [u * mmCv.width, v * mmCv.height];
 }
 function drawMinimap() {
+  if (mmCv.offsetParent === null) return;
   const s = app.built, wd = app.waveDir;
-  if (!dirtyMinimap && Math.abs(s - lastMmStage) < 0.01 && wd === lastMmWd) return;
-  dirtyMinimap = false; lastMmStage = s; lastMmWd = wd;
+  if (!dirtyMinimap && Math.abs(s - lastMmStage) < 0.01 && wd === lastMmWd && Math.abs(water.level - lastMmTide) < 0.05) return;
+  dirtyMinimap = false; lastMmStage = s; lastMmWd = wd; lastMmTide = water.level;
   const W = mmCv.width, H = mmCv.height;
   const img = mmCtx.createImageData(W, H);
   const data = img.data;
   const step = 2;
+  const tex = land.heightTex.image;
+  const samples = tex.data as Uint8Array;
   for (let py = 0; py < H; py += step) {
     const z = MM_WORLD.z1 - (py / (H - 1)) * (MM_WORLD.z1 - MM_WORLD.z0);
     for (let px = 0; px < W; px += step) {
       const x = MM_WORLD.x0 + (px / (W - 1)) * (MM_WORLD.x1 - MM_WORLD.x0);
-      const cell = planCell(x, z, s, wd, app.focus);
+      const ix = Math.round((x - INNER.min) / INNER.size * (tex.width - 1));
+      const iz = Math.round((z - INNER.min) / INNER.size * (tex.height - 1));
+      const sample = (iz * tex.width + ix) * 4;
+      const height = samples[sample] / 255 * 72 - 28;
+      const cell = height > water.level ? (samples[sample + 1] > 127 ? 2 : 1) : 0;
       let r = 8, g = 42, b = 68;
       if (cell === 1) { r = 196; g = 165; b = 116; }
       else if (cell === 2) { r = 232; g = 213; b = 163; }
@@ -858,6 +888,7 @@ function applyWaveDir(deg: number, rebuild = true) {
   $('wave-hint').textContent = tip;
   document.querySelectorAll<HTMLButtonElement>('#wave-pad .wd').forEach((b) => {
     b.classList.toggle('active', Number(b.dataset.deg) === deg);
+    b.setAttribute('aria-pressed', String(Number(b.dataset.deg) === deg));
   });
   water.setWaveAngle((-deg * Math.PI) / 180);
   if (rebuild) {
@@ -879,10 +910,8 @@ $('lesson-overview').addEventListener('click', () => exitLesson(true));
 // play tip + mini goal
 const tipEl = $('play-tip');
 const mgEl = $('mini-goal');
-let tipShown = false;
-setTimeout(() => {
-  if (!tipShown && app.mode === 'explore') { tipEl.classList.add('show'); tipShown = true; }
-}, 5200);
+
+$('help-toggle').addEventListener('click', () => { tipEl.classList.toggle('show'); });
 $('tip-dismiss').addEventListener('click', () => {
   tipEl.classList.remove('show');
   setTimeout(() => mgEl.classList.add('show'), 600);
@@ -912,7 +941,7 @@ function boot() {
   firstBuild = () => setTimeout(() => {
     $('loader').classList.add('done');
     flyOverview(4.2);
-    setTimeout(() => toast('點選地貌入「專題學習」· 一次一個變化 · 轉浪向睇背風積沙', 4800), 1600);
+    setTimeout(() => toast('由左側選擇地貌開始 · 拖曳旋轉，滾輪縮放', 4800), 1600);
   }, 250);
   requestBuild(0);
   requestAnimationFrame(frame);
@@ -927,3 +956,11 @@ function snap() {
   if (camTween) { camera.position.copy(camTween.p1); controls.target.copy(camTween.t1); camTween = null; controls.update(); }
 }
 (window as unknown as Record<string, unknown>).__sim = { snap, focusLandform, V3: THREE.Vector3, world: W, setView, app, setStage, animateStage, selectLandform, enterLesson, exitLesson, flyTo, flyOverview, flyTopDown, setMode, camera, controls, caveZ, splash, setPlaying, applyWaveDir, drawMinimap };
+
+// Compact navigation keeps every lesson reachable on tablets and phones.
+const picker = $('landform-picker') as HTMLSelectElement;
+picker.innerHTML = '<option value="">選擇地貌專題…</option>' + LANDFORMS.map(lf => `<option value="${lf.id}">${lf.zh} · ${lf.en}</option>`).join('');
+picker.addEventListener('change', () => { if (picker.value) selectLandform(picker.value as LandformId, true); });
+$('about-toggle').addEventListener('click', () => ($('about-model') as HTMLDialogElement).showModal());
+$('about-close').addEventListener('click', () => ($('about-model') as HTMLDialogElement).close());
+worker.onerror = () => { $('loader').classList.remove('done'); $('loader-text').textContent = '地形未能載入，請重新整理頁面再試。'; };

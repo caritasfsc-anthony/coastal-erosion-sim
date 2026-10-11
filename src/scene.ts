@@ -14,17 +14,17 @@ import { CliffDebris } from './debris';
 
 export function createWorld(canvas: HTMLCanvasElement) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.08;
 
-  const sunDir = new THREE.Vector3(0.65, 0.55, -0.52).normalize();
-  const sunColor = new THREE.Color(0xffe0b8);
+  const sunDir = new THREE.Vector3(-0.6, 0.85, -0.3).normalize();
+  const sunColor = new THREE.Color(0xfff3df);
   const skyTop = new THREE.Color(0x1a5a8e);
-  const skyHorizon = new THREE.Color(0xe2d0b6);
+  const skyHorizon = new THREE.Color(0xb7d4dd);
   const fogColor = skyHorizon.clone();
   const fogDensity = 0.00055;
 
@@ -55,11 +55,11 @@ export function createWorld(canvas: HTMLCanvasElement) {
   scene.environment = pmrem.fromScene(envScene, 0.02, 0.1, 100).texture;
   scene.environmentIntensity = 0.62;
 
-  const sun = new THREE.DirectionalLight(sunColor, 3.35);
+  const sun = new THREE.DirectionalLight(sunColor, 2.6);
   sun.position.copy(sunDir).multiplyScalar(400).add(new THREE.Vector3(0, 0, 0));
   sun.target.position.set(0, 0, 0);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(4096, 4096);
+  sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;
   sc.left = -220; sc.right = 220; sc.top = 220; sc.bottom = -220; sc.near = 10; sc.far = 1000;
   sun.shadow.bias = -0.0004;
@@ -81,9 +81,9 @@ export function createWorld(canvas: HTMLCanvasElement) {
 
   // post-processing
   const size = new THREE.Vector2(window.innerWidth, window.innerHeight);
-  const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
+  const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 2 });
   const composer = new EffectComposer(renderer, rt);
-  composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  composer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(size, 0.18, 0.55, 0.92);
   composer.addPass(bloom);
