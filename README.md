@@ -1,39 +1,47 @@
 # 海岸侵蝕實驗室｜Coastal Erosion Lab
 
-一個用 **Three.js** 製作的互動 3D 網上學習模擬。學生可以「快轉」數千年的海浪侵蝕與沉積，觀察岩岸與連島沙洲如何形成。介面全以繁體中文（香港）呈現。
+繁體中文（香港）的 Three.js 互動地理教學工具：探索九個地貌、觀看分章解說，再以挑戰模式辨認地貌。
 
-> **教學樣本聲明**：地形是簡化啞鈴形教學模型，**並非真實某島或精確測量／GIS 數據**，重點在地貌位置與形成過程。
+[開啟網站](https://caritasfsc-anthony.github.io/coastal-erosion-sim/)
 
-## 可玩連結
+## 課堂使用
 
-https://caritasfsc-anthony.github.io/coastal-erosion-sim/
+1. 選擇地貌專題；手機和平板可使用上方選單。
+2. 拖動演變階段或播放，觀察地貌家族的變化。
+3. 比較來浪方向，切換潮汐觀察平台與沙洲。
+4. 使用「模型與資料來源」閱讀適用範圍。
 
-## 快速開始
+拖曳旋轉、滾輪或雙指縮放。地貌選項可用鍵盤 Tab、Enter 操作。空白鍵播放，左右方向鍵調整演變階段（控制元件聚焦時保留原生鍵盤操作）。
 
-```bash
-cd coastal-erosion-sim
-npm install
-npm run dev      # http://localhost:5173
+## 模型的適用範圍
+
+- 虛構海岸概念模型，並非實際島嶼、測量或 GIS 地形。
+- 百分比為教學進度，不代表固定年期、侵蝕速率或預測。
+- 海崖與平台、洞拱柱、沉積地貌為不同過程，可同時發生；並非九個地貌的一條必然序列。
+- 來浪方向切換比較不同長期情境，不模擬泥沙瞬間搬移。沒有求解波浪折射／繞射、泥沙收支或搬運速率。
+- 波浪強度只影響水面、浪花及濕潤效果；潮汐只控制水位。
+- 連島沙洲需要適合水深、波浪及泥沙供應，不是任何兩島都必然相連。
+- 南岸凹地使用高度場近似，未建立真實懸垂崖壁的力學模型。
+- 小地圖是地貌位置示意，不是精確岸線或潮汐淹浸圖。
+
+## 本機開發與驗證
+
+需要 Node.js 22.18+ 及支援 WebGL2 的瀏覽器。
+
+```sh
+npm ci
+npm test
 npm run build
-npm run preview
+npm run dev
 ```
 
-需要 Node.js 18+ 及支援 WebGL2 的瀏覽器。
+模型回歸檢查涵蓋來浪方位、九個專題建議階段、柱／殘柱互斥、原岬角內的固定殘柱位置、專題隔離，以及多個階段的有效網格。`.model-check/` 是檢查產生的暫存檔，已忽略。
 
-## 學習內容（9 個可點擊熱點）
+文字內容在 `src/landforms.ts` 與 `src/story.ts`。正式建置使用 `/coastal-erosion-sim/` 路徑，推送 main 後由原有 GitHub Pages workflow 部署。
 
-海崖、浪蝕平台、海蝕隙、海蝕洞、海蝕拱、海蝕柱、海蝕殘柱（延伸）、海灘、連島沙洲。
+## 教學參考
 
-## 功能
-
-- **兩島 → 連島沙洲**：時間軸初期南北完全分開，中期水下沙洲，後期露出連接成啞鈴。
-- **海浪方向**：八方位掣改變浪向——邊岸浪花較多（沙洲／熱點錨定不漂移）。
-- **清潔岩岸教學外觀**：無植物、無建築物，突出岩石與沙。
-- **真 3D 岬角／海蝕隙**：SDF + Surface Nets；浪拍打、海蝕凹地、崩塌碎石與浪擊點說明。
-- **三種模式**：探索／故事／挑戰；右上角俯視小地圖。
-- **侵蝕時間軸、潮汐、波浪能量**。
-
-## 備註
-
-- 年份為示意（全程約 8,000 年），重點在於地貌演變次序。
-- 教師可在 `src/landforms.ts`、`src/story.ts` 修改文字。
+- [BGS：侵蝕](https://www.bgs.ac.uk/discovering-geology/geological-processes/erosion/)
+- [BGS：沉積](https://www.bgs.ac.uk/discovering-geology/geological-processes/deposition/)
+- [NOAA：沿岸流與泥沙搬運](https://oceanservice.noaa.gov/education/tutorial_currents/03coastal2.html)
+- [NOAA：Coastal Impressions，連島沙洲](https://repository.library.noaa.gov/view/noaa/17386/noaa_17386_DS1.pdf)
